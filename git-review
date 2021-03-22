@@ -1,0 +1,185 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import re
+import argparse
+import json
+from git import Repo
+import requests
+
+gitlab_config = {}
+change_id_re = r"Change-Id: (.+?)(\s|$)"
+
+
+def load_gitlab_config(root_dir):
+    global gitlab_config
+    with open(os.path.join(root_dir, ".git/hooks/gitlab_config.json")) as f:
+        gitlab_config = json.load(f)
+
+
+def get_msg_title_description(msg):
+    title, desc = tuple(msg.split("\n", 1))
+    desc = re.sub(change_id_re, "", desc)
+    return title, desc
+
+
+def get_change_id(msg):
+    m = re.search(change_id_re, msg)
+    if m:
+        return m.group(1)
+    else:
+        raise ValueError("Didn't find the Change-Id in the commit message!")
+
+
+def get_remote_branch_name(local_branch, change_id):
+    return "{}-{}".format(local_branch, change_id[1:5])
+
+
+class MergeRequest:
+
+    def __init__(
+            self, remote_repo, change_id, source_branch, target_branch, title,
+            description, last_in_branch):
+        self._remote_repo = remote_repo
+        self._change_id = change_id
+        self._url = "{}/projects/{}/merge_requests".format(
+            gitlab_config["GITLAB_API_V4"], gitlab_config["PROJECT_ID"])
+        self._source_branch = source_branch
+        self._target_branch = target_branch
+        self._title = title
+        self._description = description
+        self._last_in_branch = last_in_branch
+        self._headers = {"PRIVATE-TOKEN": gitlab_config["PRIVATE_TOKEN"]}
+
+    def exists(self):
+        r = requests.get(
+            "{}?state=opened".format(self._url), headers=self._headers)
+        mrs = r.json()
+        for mr in r.json():
+            if self._source_branch == mr["source_branch"]:
+                return True, mr["iid"]
+        return False, -1
+
+    def create(self):
+        data = {
+            "source_branch": self._source_branch,
+            "target_branch": self._target_branch,
+            "title": self._title,
+            "description": self._description,
+        }
+        r = requests.post(self._url, headers=self._headers, data=data)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+
+    def _delete_mr(self, iid, branch):
+        """Deletes a merge request and its branch."""
+        r = requests.delete(
+            "{}/{}".format(self._url, iid), headers=self._headers)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+        # Delete the branch as well.
+        self._remote_repo.push(refspec=":{}".format(branch))
+
+    def _delete_dependents(self):
+        """Deletes any MRs (and their branches) that depend on this MR."""
+        r = requests.get(
+            "{}?state=opened".format(self._url), headers=self._headers)
+        mrs = r.json()
+        dependents = []
+        for mr in r.json():
+            if self._source_branch == mr["target_branch"]:
+                dependents.append((mr["iid"], mr["source_branch"]))
+        for iid, branch in dependents:
+            self._delete_mr(iid, branch)
+
+    def update(self, iid):
+        if self._last_in_branch:
+            self._delete_dependents()
+        # Update the MR.
+        data = {
+            "source_branch": self._source_branch,
+            "target_branch": self._target_branch,
+            "title": self._title,
+            "description": self._description,
+        }
+        r = requests.put(
+            "{}/{}".format(self._url, iid), headers=self._headers, data=data)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "remote", type=str, help="The remote to push the reviews.")
+    parser.add_argument(
+        "local_branch", type=str, nargs="?",
+        help="The local branch to be reviewed.")
+    args = parser.parse_args()
+
+    repo = Repo(os.getcwd(), search_parent_directories=True)
+    root_dir = repo.git.rev_parse("--show-toplevel")
+    load_gitlab_config(root_dir)
+    remote = repo.remote(name=args.remote)
+    local_branch = args.local_branch
+    if args.local_branch is None:
+        local_branch = repo.active_branch.name
+        print(
+            "No local branch specified. Using the active branch: {}".format(
+                local_branch))
+
+    # Get the commits we are ahead of the origin/master.
+    remote.fetch(prune=True)
+    commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
+    commits.reverse()
+
+    # Get the commits that are deleted from this branch since the last review.
+    remote_commits = list(
+        repo.iter_commits("origin/master..origin/{}".format(local_branch)))
+    remote_commits.reverse()
+    for c in remote_commits:
+        print(get_msg_title_description(c.message)[0])
+
+    # Push the commits to remote by creating a new branch for each.
+    remote.push(
+        refspec="{}:refs/heads/{}".format(local_branch, local_branch),
+        force=True)
+    remote_branches = {}
+    for c in commits:
+        change_id = get_change_id(c.message)
+        remote_branch = get_remote_branch_name(local_branch, change_id)
+        remote.push(
+            refspec="{}:refs/heads/{}".format(
+                c.hexsha, remote_branch, force=True))
+        remote_branches[c.hexsha] = remote_branch
+
+    # Create a merge request for each commit.
+    for idx, c in enumerate(commits):
+        change_id = get_change_id(c.message)
+        source_branch = remote_branches[c.hexsha]
+        if idx == 0:
+            # If this is the oldest commit, then the target branch should be
+            # master.
+            target_branch = "master"
+        else:
+            target_branch = remote_branches[commits[idx - 1].hexsha]
+        title, desp = get_msg_title_description(c.message)
+        print("-" * 80)
+        print(title)
+        print("{} -> {}".format(local_branch, source_branch))
+        last_in_branch = (idx == len(commits) - 1)
+        mr = MergeRequest(
+            remote_repo=remote, change_id=change_id,
+            source_branch=source_branch, target_branch=target_branch,
+            title=title, description=desp, last_in_branch=last_in_branch)
+        exists, iid = mr.exists()
+        if not exists:
+            mr.create()
+        else:
+            mr.update(iid)
+    print("-" * 80)
+
+
+if __name__ == "__main__":
+    main()
