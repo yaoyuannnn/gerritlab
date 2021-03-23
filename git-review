@@ -89,8 +89,10 @@ def submit_merge_requests(remote_repo, local_branch, commits, remote_commits):
     # change its target_branch to master.
     for mr in mergeables:
         mr.update(target_branch="master")
+        #FIXME: poll the merge request status and waiting until merge_status is
+        # no longer "checking".
+        mr.submit()
         mr.print_info()
-        #mr.submit()
 
 
 def delete_invalid_merge_requests(
@@ -128,7 +130,9 @@ class MergeRequest:
 
     def print_info(self):
         print(self._title)
-        print("    {} -> {}".format(self._local_branch, self._source_branch))
+        print(
+            "    {} -> {} ({})".format(
+                self._local_branch, self._source_branch, self._target_branch))
         print("    MR link: {}".format(self._mr_url))
 
     def create(self):
@@ -144,7 +148,6 @@ class MergeRequest:
         data = r.json()
         self._iid = data["iid"]
         self._mr_url = data["web_url"]
-        self.print_info()
 
     def update(
             self, source_branch=None, target_branch=None, title=None,
@@ -170,7 +173,6 @@ class MergeRequest:
         data = r.json()
         self._iid = data["iid"]
         self._mr_url = data["web_url"]
-        self.print_info()
 
     def submit(self):
         if self._iid is None:
@@ -265,6 +267,7 @@ def main():
                 source_branch=source_branch, target_branch=target_branch,
                 title=title, description=desp)
             mr.create()
+        mr.print_info()
 
 
 if __name__ == "__main__":
