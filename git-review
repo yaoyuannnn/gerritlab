@@ -288,7 +288,7 @@ class MergeRequest:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "remote", type=str, default="origin",
+        "remote", type=str, nargs="?", default="origin",
         help="The remote to push the reviews.")
     parser.add_argument(
         "local_branch", type=str, nargs="?",
