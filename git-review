@@ -49,14 +49,13 @@ def is_remote_stale(commits, remote_commits):
     return shas != remote_shas
 
 
-def get_merge_request(local_branch, change_id):
-    """Return MR's iid given Change-Id."""
+def get_merge_request(branch):
+    """Return a `MergeRequest` given branch name."""
     r = requests.get("{}?state=opened".format(url), headers=headers)
     for mr in r.json():
-        if get_remote_branch_name(local_branch,
-                                  change_id) == mr["source_branch"]:
-            return mr["iid"]
-    raise ValueError("Can't find a MR associated with the given Change-Id!")
+        if mr["source_branch"] == branch:
+            return MergeRequest(json_data = mr)
+    return None
 
 
 def submit_merge_requests(remote_repo, local_branch, commits, remote_commits):
@@ -64,34 +63,47 @@ def submit_merge_requests(remote_repo, local_branch, commits, remote_commits):
     assert not is_remote_stale(commits, remote_commits), "Remote is stale!"
     # Get MRs created off of the given branch.
     r = requests.get("{}?state=opened".format(url), headers=headers)
-    mrs =  collections.OrderedDict()
+    mrs = collections.OrderedDict()
     for mr in r.json():
         if mr["source_branch"].startswith(local_branch):
-            mrs[mr["source_branch"]] = mr
+            mrs[mr["target_branch"]] = mr
 
-    for mr in mrs.values():
-        target_branch = mr["target_branch"]
-        if target_branch != "master":
-            assert target_branch in mrs
+    def mergeable(mr):
+        return mr["merge_status"] == "can_be_merged"
 
+    def find_mergeable_chain(mrs, root):
+        if not mergeable(root):
+            return []
+        else:
+            mergeables = [MergeRequest(json_data=root)]
+            if root["source_branch"] not in mrs:
+                return mergeables
+            else:
+                next_mr = mrs[root["source_branch"]]
+                mergeables.extend(find_mergeable_chain(mrs, next_mr))
+                return mergeables
 
-def delete_merge_request(iid):
-    """Deletes a merge request with the given iid."""
-    r = requests.delete("{}/{}".format(url, iid), headers=headers)
-    if r.status_code != requests.codes.ok:
-        r.raise_for_status()
+    root = mrs["master"]
+    mergeables = find_mergeable_chain(mrs, root)
+    # We must submit MRs from the oldest. And before submitting an MR, we must
+    # change its target_branch to master.
+    for mr in mergeables:
+        mr.update(target_branch="master")
+        mr.print_info()
+        #mr.submit()
 
 
 def delete_invalid_merge_requests(
         remote_repo, local_branch, commits, remote_commits):
     """Deletes the invalid merge requests and their branches."""
+
     change_ids = set([get_change_id(c.message) for c in commits])
     remote_change_ids = set([get_change_id(c.message) for c in remote_commits])
     deleted_change_ids = list(remote_change_ids - change_ids)
     for change_id in deleted_change_ids:
         # Delete the MR by its iid.
-        iid = get_merge_request(local_branch, change_id)
-        delete_merge_request(iid)
+        mr = get_merge_request(get_remote_branch_name(local_branch, change_id))
+        mr.delete()
         # Delete the branch as well.
         remote_repo.push(
             refspec=":{}".format(
@@ -101,29 +113,23 @@ def delete_invalid_merge_requests(
 class MergeRequest:
 
     def __init__(
-            self, remote_repo, change_id, local_branch, source_branch,
-            target_branch, title, description):
-        self._remote_repo = remote_repo
-        self._change_id = change_id
-        self._local_branch = local_branch
-        self._source_branch = source_branch
-        self._target_branch = target_branch
-        self._title = title
-        self._description = description
-        self._iid = None
+            self, source_branch=None, target_branch=None,
+            title=None, description=None, json_data=None):
+        self._source_branch = source_branch if source_branch else json_data[
+            "source_branch"]
+        self._target_branch = target_branch if target_branch else json_data[
+            "target_branch"]
+        self._local_branch = self._source_branch.rsplit("-", 1)[0]
+        self._title = title if title else json_data["title"]
+        self._description = description if description else json_data[
+            "description"]
+        self._iid = json_data["iid"] if json_data else None
+        self._mr_url = json_data["web_url"] if json_data else None
 
-    def exists(self):
-        r = requests.get("{}?state=opened".format(url), headers=headers)
-        mrs = r.json()
-        for mr in r.json():
-            if self._source_branch == mr["source_branch"]:
-                return True, mr["iid"]
-        return False, -1
-
-    def _print_info(self, mr_url):
+    def print_info(self):
         print(self._title)
         print("    {} -> {}".format(self._local_branch, self._source_branch))
-        print("    MR link: {}".format(mr_url))
+        print("    MR link: {}".format(self._mr_url))
 
     def create(self):
         data = {
@@ -136,25 +142,47 @@ class MergeRequest:
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
-        self._print_info(data["web_url"])
         self._iid = data["iid"]
+        self._mr_url = data["web_url"]
+        self.print_info()
 
-    def update(self, iid):
+    def update(
+            self, source_branch=None, target_branch=None, title=None,
+            description=None):
+        if source_branch is not None:
+            self._source_branch = source_branch
+        if target_branch is not None:
+            self._target_branch = target_branch
+        if title is not None:
+            self._title = title
+        if description is not None:
+            self._description = description
         data = {
             "source_branch": self._source_branch,
             "target_branch": self._target_branch,
             "title": self._title,
             "description": self._description,
         }
-        r = requests.put("{}/{}".format(url, iid), headers=headers, data=data)
+        r = requests.put(
+            "{}/{}".format(url, self._iid), headers=headers, data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
-        self._print_info(data["web_url"])
         self._iid = data["iid"]
+        self._mr_url = data["web_url"]
+        self.print_info()
 
     def submit(self):
+        if self._iid is None:
+            raise ValueError("Must set iid before submittng an MR!")
         r = requests.put("{}/{}/merge".format(url, self._iid), headers=headers)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+
+    def delete(self):
+        if self._iid is None:
+            raise ValueError("Must set iid before deleting an MR!")
+        r = requests.delete("{}/{}".format(url, self._iid), headers=headers)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
 
@@ -227,15 +255,16 @@ def main():
         else:
             target_branch = remote_branches[commits[idx - 1].hexsha]
         title, desp = get_msg_title_description(c.message)
-        mr = MergeRequest(
-            remote_repo=remote, change_id=change_id, local_branch=local_branch,
-            source_branch=source_branch, target_branch=target_branch,
-            title=title, description=desp)
-        exists, iid = mr.exists()
-        if not exists:
-            mr.create()
+        mr = get_merge_request(source_branch)
+        if mr is not None:
+            mr.update(
+                source_branch=source_branch, target_branch=target_branch,
+                title=title, description=desp)
         else:
-            mr.update(iid)
+            mr = MergeRequest(
+                source_branch=source_branch, target_branch=target_branch,
+                title=title, description=desp)
+            mr.create()
 
 
 if __name__ == "__main__":
