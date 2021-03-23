@@ -14,6 +14,7 @@ from bcolors import bcolors
 url = None
 headers = None
 change_id_re = r"Change-Id: (.+?)(\s|$)"
+dry_run = False
 
 
 def load_gitlab_config(root_dir):
@@ -68,6 +69,9 @@ def submit_merge_requests(local_branch):
     for mr in r.json():
         if mr["source_branch"].startswith(local_branch):
             mrs[mr["target_branch"]] = mr
+    if len(mrs) == 0:
+        print("No MRs found for this branch: {}".format(local_branch))
+        return
 
     def mergeable(mr):
         return mr["mergeable"] == True
@@ -93,10 +97,11 @@ def submit_merge_requests(local_branch):
     # We must submit MRs from the oldest. And before submitting an MR, we must
     # change its target_branch to master.
     for mr in mergeables:
-        mr.update(target_branch="master")
-        #FIXME: Poll the merge req status and waiting until merge_status is
-        # no longer "checking".
-        mr.submit()
+        if not dry_run:
+            mr.update(target_branch="master")
+            #FIXME: Poll the merge req status and waiting until merge_status is
+            # no longer "checking".
+            mr.submit()
 
     print()
     print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
@@ -268,8 +273,11 @@ def main():
         "local_branch", type=str, nargs="?",
         help="The local branch to be reviewed.")
     parser.add_argument(
-        "--merge", action="store_true", default=False,
+        "--merge", "-m", action="store_true", default=False,
         help="Merge the MRs if they are approved.")
+    parser.add_argument(
+        "--dry-run", "-d", action="store_true", default=False,
+        help="Dry run the command.")
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
@@ -281,6 +289,12 @@ def main():
             bcolors.WARNING + "warning" + bcolors.ENDC +
             ": No local branch specified. Using the active branch: {}".format(
                 local_branch))
+
+    global dry_run
+    dry_run = args.dry_run
+    if dry_run:
+        print(
+            bcolors.WARNING + "warning" + bcolors.ENDC + ": Dry running mode.")
 
     # Submit the MRs if they become mergeable.
     if args.merge:
