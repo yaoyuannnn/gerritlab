@@ -9,6 +9,8 @@ import json
 from git import Repo
 import requests
 
+from bcolors import bcolors
+
 url = None
 headers = None
 change_id_re = r"Change-Id: (.+?)(\s|$)"
@@ -58,9 +60,8 @@ def get_merge_request(branch):
     return None
 
 
-def submit_merge_requests(remote_repo, local_branch, commits, remote_commits):
+def submit_merge_requests(local_branch):
     """Submits merge requests."""
-    assert not is_remote_stale(commits, remote_commits), "Remote is stale!"
     # Get MRs created off of the given branch.
     r = requests.get("{}?state=opened".format(url), headers=headers)
     mrs = collections.OrderedDict()
@@ -69,7 +70,7 @@ def submit_merge_requests(remote_repo, local_branch, commits, remote_commits):
             mrs[mr["target_branch"]] = mr
 
     def mergeable(mr):
-        return mr["merge_status"] == "can_be_merged"
+        return mr["mergeable"] == True
 
     def find_mergeable_chain(mrs, root):
         if not mergeable(root):
@@ -85,31 +86,100 @@ def submit_merge_requests(remote_repo, local_branch, commits, remote_commits):
 
     root = mrs["master"]
     mergeables = find_mergeable_chain(mrs, root)
+    if len(mergeables) == 0:
+        print("No MRs are currently mergeable.")
+        return
+
     # We must submit MRs from the oldest. And before submitting an MR, we must
     # change its target_branch to master.
     for mr in mergeables:
         mr.update(target_branch="master")
-        #FIXME: poll the merge request status and waiting until merge_status is
+        #FIXME: Poll the merge request status and waiting until merge_status is
         # no longer "checking".
         mr.submit()
+
+    print()
+    print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
+    print()
+    print("{} MRs submitted at {}:".format(len(mrs), remote.url))
+    for mr in mergeables:
         mr.print_info()
 
 
-def delete_invalid_merge_requests(
-        remote_repo, local_branch, commits, remote_commits):
-    """Deletes the invalid merge requests and their branches."""
+def create_merge_requests(remote, local_branch):
+    """Creates new merge requests on remote."""
 
-    change_ids = set([get_change_id(c.message) for c in commits])
-    remote_change_ids = set([get_change_id(c.message) for c in remote_commits])
-    deleted_change_ids = list(remote_change_ids - change_ids)
-    for change_id in deleted_change_ids:
-        # Delete the MR by its iid.
-        mr = get_merge_request(get_remote_branch_name(local_branch, change_id))
-        mr.delete()
-        # Delete the branch as well.
-        remote_repo.push(
-            refspec=":{}".format(
-                get_remote_branch_name(local_branch, change_id)))
+    def delete_invalid_merge_requests(commits, remote_commits):
+        """Deletes the invalid merge requests and their branches."""
+        change_ids = set([get_change_id(c.message) for c in commits])
+        remote_change_ids = set(
+            [get_change_id(c.message) for c in remote_commits])
+        deleted_change_ids = list(remote_change_ids - change_ids)
+        for change_id in deleted_change_ids:
+            # Delete the MR by its iid.
+            mr = get_merge_request(
+                get_remote_branch_name(local_branch, change_id))
+            mr.delete()
+            # Delete the branch as well.
+            remote.push(
+                refspec=":{}".format(
+                    get_remote_branch_name(local_branch, change_id)))
+
+    # Get the local commits that are ahead of the origin/master.
+    remote.fetch(prune=True)
+    commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
+    commits.reverse()
+    # Get the remote commits that are ahead of the origin/master.
+    remote_commits = list(
+        repo.iter_commits("origin/master..origin/{}".format(local_branch)))
+    remote_commits.reverse()
+
+    # Delete the MRs whose commits are now deleted since the last review.
+    if "origin/{}".format(local_branch) in [r.name for r in repo.references]:
+        delete_invalid_merge_requests(commits, remote_commits)
+
+    # Push the commits to remote by creating a new branch for each.
+    remote.push(
+        refspec="{}:refs/heads/{}".format(local_branch, local_branch),
+        force=True)
+    remote_branches = {}
+    for c in commits:
+        change_id = get_change_id(c.message)
+        remote_branch = get_remote_branch_name(local_branch, change_id)
+        remote.push(
+            refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
+            force=True)
+        remote_branches[c.hexsha] = remote_branch
+
+    # Create a merge request for each commit.
+    mrs = []
+    for idx, c in enumerate(commits):
+        change_id = get_change_id(c.message)
+        source_branch = remote_branches[c.hexsha]
+        if idx == 0:
+            # If this is the oldest commit, then the target branch should be
+            # master.
+            target_branch = "master"
+        else:
+            target_branch = remote_branches[commits[idx - 1].hexsha]
+        title, desp = get_msg_title_description(c.message)
+        mr = get_merge_request(source_branch)
+        if mr is not None:
+            mr.update(
+                source_branch=source_branch, target_branch=target_branch,
+                title=title, description=desp)
+        else:
+            mr = MergeRequest(
+                source_branch=source_branch, target_branch=target_branch,
+                title=title, description=desp)
+            mr.create()
+        mrs.append(mr)
+    print()
+    print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
+    print()
+    print("{} new MRs to {}:".format(len(mrs), remote.url))
+    for mr in mrs:
+        mr.print_info()
 
 
 class MergeRequest:
@@ -129,11 +199,11 @@ class MergeRequest:
         self._mr_url = json_data["web_url"] if json_data else None
 
     def print_info(self):
-        print(self._title)
+        print("* {}".format(self._title))
+        print("    MR link: {}".format(self._mr_url))
         print(
             "    {} -> {} ({})".format(
                 self._local_branch, self._source_branch, self._target_branch))
-        print("    MR link: {}".format(self._mr_url))
 
     def create(self):
         data = {
@@ -209,65 +279,17 @@ def main():
     if args.local_branch is None:
         local_branch = repo.active_branch.name
         print(
-            "No local branch specified. Using the active branch: {}".format(
+            bcolors.WARNING + "warning" + bcolors.ENDC +
+            ": No local branch specified. Using the active branch: {}".format(
                 local_branch))
 
-    # Get the local commits that are ahead of the origin/master.
-    remote.fetch(prune=True)
-    commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
-    commits.reverse()
-    # Get the remote commits that are ahead of the origin/master.
-    remote_commits = list(
-        repo.iter_commits("origin/master..origin/{}".format(local_branch)))
-    remote_commits.reverse()
-
-    # Submit the MRs if they have been approved.
+    # Submit the MRs if they become mergeable.
     if args.merge:
         print("Submitting merge requests:")
-        submit_merge_requests(remote, local_branch, commits, remote_commits)
+        submit_merge_requests(local_branch)
         sys.exit(0)
 
-    # Delete the MRs whose commits are now deleted since the last review.
-    if "origin/{}".format(local_branch) in [r.name for r in repo.references]:
-        delete_invalid_merge_requests(
-            remote, local_branch, commits, remote_commits)
-
-    # Push the commits to remote by creating a new branch for each.
-    remote.push(
-        refspec="{}:refs/heads/{}".format(local_branch, local_branch),
-        force=True)
-    remote_branches = {}
-    for c in commits:
-        change_id = get_change_id(c.message)
-        remote_branch = get_remote_branch_name(local_branch, change_id)
-        remote.push(
-            refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
-            force=True)
-        remote_branches[c.hexsha] = remote_branch
-
-    # Create a merge request for each commit.
-    print("Creating merge requests:")
-    for idx, c in enumerate(commits):
-        change_id = get_change_id(c.message)
-        source_branch = remote_branches[c.hexsha]
-        if idx == 0:
-            # If this is the oldest commit, then the target branch should be
-            # master.
-            target_branch = "master"
-        else:
-            target_branch = remote_branches[commits[idx - 1].hexsha]
-        title, desp = get_msg_title_description(c.message)
-        mr = get_merge_request(source_branch)
-        if mr is not None:
-            mr.update(
-                source_branch=source_branch, target_branch=target_branch,
-                title=title, description=desp)
-        else:
-            mr = MergeRequest(
-                source_branch=source_branch, target_branch=target_branch,
-                title=title, description=desp)
-            mr.create()
-        mr.print_info()
+    create_merge_requests(remote, local_branch)
 
 
 if __name__ == "__main__":
