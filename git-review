@@ -139,8 +139,14 @@ def create_merge_requests(repo, remote, local_branch):
                 refspec=":{}".format(
                     get_remote_branch_name(local_branch, change_id)))
 
-    # Get the local commits that are ahead of the origin/master.
+    # Sync up remote branches.
     remote.fetch(prune=True)
+
+    # Rebase before creating any MRs.
+    remote.pull("master", rebase=True)
+    print("Rebased with remote master.")
+
+    # Get the local commits that are ahead of the origin/master.
     commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
     commits.reverse()
 
@@ -306,10 +312,6 @@ def main():
     local_branch = args.local_branch
     if args.local_branch is None:
         local_branch = repo.active_branch.name
-        print(
-            bcolors.WARNING + "warning" + bcolors.ENDC +
-            ": No local branch specified. Using the active branch: {}".format(
-                local_branch))
 
     global dry_run
     dry_run = args.dry_run
