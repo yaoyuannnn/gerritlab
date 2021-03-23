@@ -4,6 +4,7 @@ import sys
 import os
 import re
 import argparse
+import configparser
 import collections
 import json
 from git import Repo
@@ -17,14 +18,17 @@ change_id_re = r"Change-Id: (.+?)(\s|$)"
 dry_run = False
 
 
-def load_gitlab_config(root_dir):
+def load_gitreview_config(remote, root_dir):
     global url
     global headers
-    with open(os.path.join(root_dir, ".git/hooks/gitlab_config.json")) as f:
-        gitlab_config = json.load(f)
-    url = "{}/projects/{}/merge_requests".format(
-        gitlab_config["GITLAB_API_V4"], gitlab_config["PROJECT_ID"])
-    headers = {"PRIVATE-TOKEN": gitlab_config["PRIVATE_TOKEN"]}
+    config = configparser.ConfigParser()
+    config.read(os.path.join(root_dir, ".gitreview"))
+    configs = config[remote]
+    host = configs["host"]
+    project_id = configs["project_id"]
+    private_token = configs["private_token"]
+    url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
+    headers = {"PRIVATE-TOKEN": private_token}
 
 
 def get_msg_title_description(msg):
@@ -66,25 +70,25 @@ def submit_merge_requests(local_branch):
     # Get MRs created off of the given branch.
     r = requests.get("{}?state=opened".format(url), headers=headers)
     mrs = collections.OrderedDict()
-    for mr in r.json():
-        if mr["source_branch"].startswith(local_branch):
-            mrs[mr["target_branch"]] = mr
+    for json_data in r.json():
+        if json_data["source_branch"].startswith(local_branch):
+            mrs[json_data["target_branch"]] = MergeRequest(json_data=json_data)
     if len(mrs) == 0:
         print("No MRs found for this branch: {}".format(local_branch))
         return
-
-    def mergeable(mr):
-        return mr["mergeable"] == True
+    for mr in mrs.values():
+        mr.print_info()
+        print("    [mergeable]: {}".format(mr.mergeable))
 
     def find_mergeable_chain(mrs, root):
-        if not mergeable(root):
+        if not root.mergeable:
             return []
         else:
-            mergeables = [MergeRequest(json_data=root)]
-            if root["source_branch"] not in mrs:
+            mergeables = [root]
+            if root.source_branch not in mrs:
                 return mergeables
             else:
-                next_mr = mrs[root["source_branch"]]
+                next_mr = mrs[root.source_branch]
                 mergeables.extend(find_mergeable_chain(mrs, next_mr))
                 return mergeables
 
@@ -106,9 +110,9 @@ def submit_merge_requests(local_branch):
     print()
     print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
     print()
-    print("{} MRs submitted at {}:".format(len(mrs), remote.url))
+    print("{} MR(s) submitted at {}:".format(len(mrs), remote.url))
     for mr in mergeables:
-        mr.print_info()
+        mr.print_info(verbose=True)
 
 
 def create_merge_requests(repo, remote, local_branch):
@@ -183,33 +187,49 @@ def create_merge_requests(repo, remote, local_branch):
     print()
     print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
     print()
-    print("{} new MRs to {}:".format(len(mrs), remote.url))
+    print("{} MR(s) to {}:".format(len(mrs), remote.url))
     for mr in mrs:
-        mr.print_info()
+        mr.print_info(verbose=True)
 
 
 class MergeRequest:
 
     def __init__(
-            self, source_branch=None, target_branch=None,
-            title=None, description=None, json_data=None):
-        self._source_branch = source_branch if source_branch else json_data[
-            "source_branch"]
-        self._target_branch = target_branch if target_branch else json_data[
-            "target_branch"]
-        self._local_branch = self._source_branch.rsplit("-", 1)[0]
-        self._title = title if title else json_data["title"]
-        self._description = description if description else json_data[
-            "description"]
-        self._iid = json_data["iid"] if json_data else None
-        self._mr_url = json_data["web_url"] if json_data else None
+            self, source_branch=None, target_branch=None, title=None,
+            description=None, json_data=None):
+        self._source_branch = source_branch
+        self._target_branch = target_branch
+        self._title = title
+        self._description = description
+        self._iid = None
+        self._web_url = None
+        self._mergeable = False
 
-    def print_info(self):
-        print("* {}".format(self._title))
-        print("    MR link: {}".format(self._mr_url))
+        if json_data is not None:
+            for attr in json_data:
+                setattr(self, "_{}".format(attr), json_data[attr])
+
+        self._local_branch = self._source_branch.rsplit("-", 1)[0]
+
+    @property
+    def mergeable(self):
+        return self._mergeable
+
+    @property
+    def source_branch(self):
+        return self._source_branch
+
+    def print_info(self, verbose=False):
         print(
-            "    {} -> {} ({})".format(
-                self._local_branch, self._source_branch, self._target_branch))
+            "* {}{}".format(
+                self._title,
+                "" if not verbose else " ({})".format(self._web_url)))
+        if verbose:
+            print(
+                "    {} {} -> {} ({})".format(
+                    "[new branch]" if self._iid is None else "[updated]",
+                    self._local_branch, self._source_branch,
+                    self._target_branch))
 
     def create(self):
         data = {
@@ -223,7 +243,7 @@ class MergeRequest:
             r.raise_for_status()
         data = r.json()
         self._iid = data["iid"]
-        self._mr_url = data["web_url"]
+        self._web_url = data["web_url"]
 
     def update(
             self, source_branch=None, target_branch=None, title=None,
@@ -248,7 +268,7 @@ class MergeRequest:
             r.raise_for_status()
         data = r.json()
         self._iid = data["iid"]
-        self._mr_url = data["web_url"]
+        self._web_url = data["web_url"]
 
     def submit(self):
         if self._iid is None:
@@ -268,7 +288,8 @@ class MergeRequest:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "remote", type=str, help="The remote to push the reviews.")
+        "remote", type=str, default="origin",
+        help="The remote to push the reviews.")
     parser.add_argument(
         "local_branch", type=str, nargs="?",
         help="The local branch to be reviewed.")
@@ -281,7 +302,7 @@ def main():
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
-    load_gitlab_config(repo.git.rev_parse("--show-toplevel"))
+    load_gitreview_config(args.remote, repo.git.rev_parse("--show-toplevel"))
     local_branch = args.local_branch
     if args.local_branch is None:
         local_branch = repo.active_branch.name
