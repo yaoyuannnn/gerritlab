@@ -10,12 +10,22 @@ import json
 from git import Repo
 import requests
 
-from bcolors import bcolors
-
 url = None
 headers = None
 change_id_re = r"Change-Id: (.+?)(\s|$)"
 dry_run = False
+
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 def load_gitreview_config(remote, root_dir):
