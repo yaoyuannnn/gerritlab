@@ -29,6 +29,10 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
+def warn(msg):
+    print(bcolors.WARNING + "warning" + bcolors.ENDC + ": {}".format(msg))
+
+
 def load_gitreview_config(remote, root_dir):
     global url
     global headers
@@ -171,7 +175,7 @@ class MergeRequest:
             r.raise_for_status()
 
 
-def submit_merge_requests(local_branch):
+def submit_merge_requests(remote, local_branch):
     """Submits merge requests."""
 
     # Get MRs created off of the given branch.
@@ -199,27 +203,32 @@ def submit_merge_requests(local_branch):
                 mergeables.extend(find_mergeable_chain(mrs, next_mr))
                 return mergeables
 
+    if "master" not in mrs:
+        warn("Not a single MR interested in merging into master?")
+        return
+
     root = mrs["master"]
     mergeables = find_mergeable_chain(mrs, root)
     if len(mergeables) == 0:
-        print("No MRs are currently mergeable.")
+        warn("No MRs are currently mergeable.")
         return
 
-    # We must submit MRs from the oldest. And before submitting an MR, we must
-    # change its target_branch to master.
-    for mr in mergeables:
-        if not dry_run:
+    if not dry_run:
+        # We must submit MRs from the oldest. And before submitting an MR, we
+        # must change its target_branch to master.
+        for mr in mergeables:
             mr.update(target_branch="master")
-            #FIXME: Poll the merge req status and waiting until merge_status is
-            # no longer "checking".
+            #FIXME: Poll the merge req status and waiting until
+            # merge_status is no longer "checking".
             mr.submit()
 
-    print()
-    print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
-    print()
-    print("{} MR(s) submitted at {}:".format(len(mrs), remote.url))
-    for mr in mergeables:
-        mr.print_info()
+        print()
+        print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
+        print()
+        print("New Submissions:")
+        for mr in mergeables:
+            mr.print_info(verbose=True)
+        print("To {}".format(remote.url))
 
 
 def create_merge_requests(repo, remote, local_branch):
@@ -292,6 +301,7 @@ def main():
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
     load_gitreview_config(args.remote, repo.git.rev_parse("--show-toplevel"))
+    remote = repo.remote(name=args.remote)
     local_branch = args.local_branch
     if args.local_branch is None:
         local_branch = repo.active_branch.name
@@ -299,16 +309,14 @@ def main():
     global dry_run
     dry_run = args.dry_run
     if dry_run:
-        print(
-            bcolors.WARNING + "warning" + bcolors.ENDC + ": Dry running mode.")
+        warn("Dry run mode.")
 
     # Submit the MRs if they become mergeable.
     if args.merge:
         print("Submitting merge requests:")
-        submit_merge_requests(local_branch)
+        submit_merge_requests(remote, local_branch)
         sys.exit(0)
 
-    remote = repo.remote(name=args.remote)
     create_merge_requests(repo, remote, local_branch)
 
 
