@@ -12,6 +12,7 @@ import requests
 
 url = None
 headers = None
+remove_source_branch = False
 change_id_re = r"Change-Id: (.+?)(\s|$)"
 dry_run = False
 
@@ -31,12 +32,16 @@ class bcolors:
 def load_gitreview_config(remote, root_dir):
     global url
     global headers
+    global remove_source_branch
     config = configparser.ConfigParser()
     config.read(os.path.join(root_dir, ".gitreview"))
     configs = config[remote]
     host = configs["host"]
     project_id = configs["project_id"]
     private_token = configs["private_token"]
+    # Optional configs.
+    if "remove_source_branch" in configs:
+        remove_source_branch = configs["remove_source_branch"]
     url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
     headers = {"PRIVATE-TOKEN": private_token}
 
@@ -117,6 +122,7 @@ class MergeRequest:
             "target_branch": self._target_branch,
             "title": self._title,
             "description": self._description,
+            "remove_source_branch": remove_source_branch,
         }
         r = requests.post(url, headers=headers, data=data)
         if r.status_code != requests.codes.ok:
