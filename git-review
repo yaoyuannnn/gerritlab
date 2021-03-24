@@ -162,9 +162,10 @@ def create_merge_requests(repo, remote, local_branch):
     print()
     print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
     print()
-    print("{} MR(s) to {}:".format(len(mrs), remote.url))
+    print("New Changes:")
     for mr in mrs:
         mr.print_info(verbose=True)
+    print("To {}".format(remote.url))
 
 
 class MergeRequest:
@@ -195,10 +196,7 @@ class MergeRequest:
         return self._source_branch
 
     def print_info(self, verbose=False):
-        print(
-            "* {}{}".format(
-                self._title,
-                "" if not verbose else " ({})".format(self._web_url)))
+        print("* {} {}".format(self._web_url, self._title))
         if verbose:
             print(
                 "    {} {} -> {} ({})".format(
