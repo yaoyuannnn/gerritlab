@@ -67,6 +67,7 @@ def get_merge_request(branch):
 
 def submit_merge_requests(local_branch):
     """Submits merge requests."""
+
     # Get MRs created off of the given branch.
     r = requests.get("{}?state=opened".format(url), headers=headers)
     mrs = collections.OrderedDict()
@@ -118,27 +119,6 @@ def submit_merge_requests(local_branch):
 def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
 
-    def delete_invalid_merge_requests(commits):
-        """Deletes the invalid merge requests and their branches."""
-        # Get the remote commits that are ahead of the origin/master.
-        remote_commits = list(
-            repo.iter_commits("origin/master..origin/{}".format(local_branch)))
-        remote_commits.reverse()
-
-        change_ids = set([get_change_id(c.message) for c in commits])
-        remote_change_ids = set(
-            [get_change_id(c.message) for c in remote_commits])
-        deleted_change_ids = list(remote_change_ids - change_ids)
-        for change_id in deleted_change_ids:
-            # Delete the MR by its iid.
-            mr = get_merge_request(
-                get_remote_branch_name(local_branch, change_id))
-            mr.delete()
-            # Delete the branch as well.
-            remote.push(
-                refspec=":{}".format(
-                    get_remote_branch_name(local_branch, change_id)))
-
     # Sync up remote branches.
     remote.fetch(prune=True)
 
@@ -146,14 +126,7 @@ def create_merge_requests(repo, remote, local_branch):
     commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
     commits.reverse()
 
-    # Delete the MRs whose commits are now deleted since the last review.
-    if "origin/{}".format(local_branch) in [r.name for r in repo.references]:
-        delete_invalid_merge_requests(commits)
-
     # Push the commits to remote by creating a new branch for each.
-    remote.push(
-        refspec="{}:refs/heads/{}".format(local_branch, local_branch),
-        force=True)
     remote_branches = {}
     for c in commits:
         change_id = get_change_id(c.message)
