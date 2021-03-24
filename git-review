@@ -71,8 +71,98 @@ def get_merge_request(branch):
     r = requests.get("{}?state=opened".format(url), headers=headers)
     for mr in r.json():
         if mr["source_branch"] == branch:
-            return MergeRequest(json_data = mr)
+            return MergeRequest(json_data=mr)
     return None
+
+
+class MergeRequest:
+
+    def __init__(
+            self, source_branch=None, target_branch=None, title=None,
+            description=None, json_data=None):
+        self._source_branch = source_branch
+        self._target_branch = target_branch
+        self._title = title
+        self._description = description
+        self._iid = None
+        self._web_url = None
+        self._mergeable = False
+
+        if json_data is not None:
+            for attr in json_data:
+                setattr(self, "_{}".format(attr), json_data[attr])
+
+        self._local_branch = self._source_branch.rsplit("-", 1)[0]
+
+    @property
+    def mergeable(self):
+        return self._mergeable
+
+    @property
+    def source_branch(self):
+        return self._source_branch
+
+    def print_info(self, verbose=False):
+        print("* {} {}".format(self._web_url, self._title))
+        if verbose:
+            print(
+                "    {} {} -> {} ({})".format(
+                    "[new branch]" if self._iid is None else "[updated]",
+                    self._local_branch, self._source_branch,
+                    self._target_branch))
+
+    def create(self):
+        data = {
+            "source_branch": self._source_branch,
+            "target_branch": self._target_branch,
+            "title": self._title,
+            "description": self._description,
+        }
+        r = requests.post(url, headers=headers, data=data)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+        data = r.json()
+        self._iid = data["iid"]
+        self._web_url = data["web_url"]
+
+    def update(
+            self, source_branch=None, target_branch=None, title=None,
+            description=None):
+        if source_branch is not None:
+            self._source_branch = source_branch
+        if target_branch is not None:
+            self._target_branch = target_branch
+        if title is not None:
+            self._title = title
+        if description is not None:
+            self._description = description
+        data = {
+            "source_branch": self._source_branch,
+            "target_branch": self._target_branch,
+            "title": self._title,
+            "description": self._description,
+        }
+        r = requests.put(
+            "{}/{}".format(url, self._iid), headers=headers, data=data)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+        data = r.json()
+        self._iid = data["iid"]
+        self._web_url = data["web_url"]
+
+    def submit(self):
+        if self._iid is None:
+            raise ValueError("Must set iid before submittng an MR!")
+        r = requests.put("{}/{}/merge".format(url, self._iid), headers=headers)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+
+    def delete(self):
+        if self._iid is None:
+            raise ValueError("Must set iid before deleting an MR!")
+        r = requests.delete("{}/{}".format(url, self._iid), headers=headers)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
 
 
 def submit_merge_requests(local_branch):
@@ -176,96 +266,6 @@ def create_merge_requests(repo, remote, local_branch):
     for mr in mrs:
         mr.print_info(verbose=True)
     print("To {}".format(remote.url))
-
-
-class MergeRequest:
-
-    def __init__(
-            self, source_branch=None, target_branch=None, title=None,
-            description=None, json_data=None):
-        self._source_branch = source_branch
-        self._target_branch = target_branch
-        self._title = title
-        self._description = description
-        self._iid = None
-        self._web_url = None
-        self._mergeable = False
-
-        if json_data is not None:
-            for attr in json_data:
-                setattr(self, "_{}".format(attr), json_data[attr])
-
-        self._local_branch = self._source_branch.rsplit("-", 1)[0]
-
-    @property
-    def mergeable(self):
-        return self._mergeable
-
-    @property
-    def source_branch(self):
-        return self._source_branch
-
-    def print_info(self, verbose=False):
-        print("* {} {}".format(self._web_url, self._title))
-        if verbose:
-            print(
-                "    {} {} -> {} ({})".format(
-                    "[new branch]" if self._iid is None else "[updated]",
-                    self._local_branch, self._source_branch,
-                    self._target_branch))
-
-    def create(self):
-        data = {
-            "source_branch": self._source_branch,
-            "target_branch": self._target_branch,
-            "title": self._title,
-            "description": self._description,
-        }
-        r = requests.post(url, headers=headers, data=data)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
-        data = r.json()
-        self._iid = data["iid"]
-        self._web_url = data["web_url"]
-
-    def update(
-            self, source_branch=None, target_branch=None, title=None,
-            description=None):
-        if source_branch is not None:
-            self._source_branch = source_branch
-        if target_branch is not None:
-            self._target_branch = target_branch
-        if title is not None:
-            self._title = title
-        if description is not None:
-            self._description = description
-        data = {
-            "source_branch": self._source_branch,
-            "target_branch": self._target_branch,
-            "title": self._title,
-            "description": self._description,
-        }
-        r = requests.put(
-            "{}/{}".format(url, self._iid), headers=headers, data=data)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
-        data = r.json()
-        self._iid = data["iid"]
-        self._web_url = data["web_url"]
-
-    def submit(self):
-        if self._iid is None:
-            raise ValueError("Must set iid before submittng an MR!")
-        r = requests.put("{}/{}/merge".format(url, self._iid), headers=headers)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
-
-    def delete(self):
-        if self._iid is None:
-            raise ValueError("Must set iid before deleting an MR!")
-        r = requests.delete("{}/{}".format(url, self._iid), headers=headers)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
 
 
 def main():
