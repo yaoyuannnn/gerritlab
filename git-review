@@ -112,7 +112,7 @@ def submit_merge_requests(local_branch):
     print()
     print("{} MR(s) submitted at {}:".format(len(mrs), remote.url))
     for mr in mergeables:
-        mr.print_info(verbose=True)
+        mr.print_info()
 
 
 def create_merge_requests(repo, remote, local_branch):
@@ -141,10 +141,6 @@ def create_merge_requests(repo, remote, local_branch):
 
     # Sync up remote branches.
     remote.fetch(prune=True)
-
-    # Rebase before creating any MRs.
-    remote.pull("master", rebase=True)
-    print("Rebased with remote master.")
 
     # Get the local commits that are ahead of the origin/master.
     commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
