@@ -47,9 +47,9 @@ def load_gitreview_config(remote, root_dir):
     private_token = configs["private_token"]
     # Optional configs.
     if "remove_source_branch" in configs:
-        remove_source_branch = configs["remove_source_branch"]
+        remove_source_branch = configs.getboolean("remove_source_branch")
     if "ci_skip" in configs:
-        ci_skip = configs["ci_skip"]
+        ci_skip = configs.getboolean("ci_skip")
     url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
     headers = {"PRIVATE-TOKEN": private_token}
 
@@ -119,8 +119,7 @@ class MergeRequest:
         print("* {} {}".format(self._web_url, self._title))
         if verbose:
             print(
-                "    {} {} -> {} ({})".format(
-                    "[new branch]" if self._iid is None else "[updated]",
+                "    {} -> {} ({})".format(
                     self._local_branch, self._source_branch,
                     self._target_branch))
 
@@ -238,6 +237,28 @@ def submit_merge_requests(remote, local_branch):
 def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
 
+    def can_skip_ci(commit, remote_branch):
+        """Finds out if this commit can skip the CI pipeline."""
+        # Chek if the commit actually changes anything compared to the remote
+        # that requries a new CI pipeline.
+        if "origin/{}".format(remote_branch) in [r.name for r in remote.refs]:
+            diff = list(
+                repo.iter_commits(
+                    "origin/{}..{}".format(remote_branch, commit.hexsha)))
+            if not any(diff):
+                return True
+
+            remote_commit = list(
+                repo.iter_commits(rev="origin/{}".format(remote_branch)))[0]
+            if get_change_id(remote_commit.message) != get_change_id(
+                    commit.message):
+                raise Exception(
+                    "The local commit has a different Change-Id from the "
+                    "one on the same branch in remote!")
+            if not any(commit.diff(remote_commit)):
+                return True
+        return False
+
     # Sync up remote branches.
     remote.fetch(prune=True)
 
@@ -250,7 +271,10 @@ def create_merge_requests(repo, remote, local_branch):
     for c in commits:
         change_id = get_change_id(c.message)
         remote_branch = get_remote_branch_name(local_branch, change_id)
-        if ci_skip:
+        ci_skip_on_push = ci_skip
+        if not ci_skip_on_push:
+            ci_skip_on_push = can_skip_ci(c, remote_branch)
+        if ci_skip_on_push:
             remote.push(
                 refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
                 force=True, o="ci.skip")
@@ -285,12 +309,7 @@ def create_merge_requests(repo, remote, local_branch):
                 title=title, description=desp)
             mr.create()
             new_mrs.append(mr)
-    print(
-        "Processing changes: new: {}, updated: {}, done".format(
-            len(new_mrs), len(updated_mrs)))
-    print()
-    print(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC)
-    print()
+    print("\n{}\n".format(bcolors.OKGREEN + "SUCCESS" + bcolors.ENDC))
     if len(new_mrs) > 0:
         print("New MRs:")
         for mr in new_mrs:
