@@ -12,6 +12,7 @@ import requests
 
 mr_url = None
 pipeline_url = None
+pipelines_url = None
 headers = None
 remove_source_branch = False
 change_id_re = r"Change-Id: (.+?)(\s|$)"
@@ -37,6 +38,7 @@ def warn(msg):
 def load_gitreview_config(remote, root_dir):
     global mr_url
     global pipeline_url
+    global pipelines_url
     global headers
     global remove_source_branch
     config = configparser.ConfigParser()
@@ -49,7 +51,8 @@ def load_gitreview_config(remote, root_dir):
     if "remove_source_branch" in configs:
         remove_source_branch = configs.getboolean("remove_source_branch")
     mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
-    pipeline_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
+    pipeline_url = "{}/api/v4/projects/{}/pipeline".format(host, project_id)
+    pipelines_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
     headers = {"PRIVATE-TOKEN": private_token}
 
 
@@ -261,22 +264,32 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
                 return True
         return False
 
+    def get_pipeline_by_sha(sha):
+        r = requests.get(pipelines_url, headers=headers)
+        for pipeline in r.json():
+            if pipeline["sha"] == sha:
+                return pipeline
+        raise ValueError("Didn't find a pipeline with the given sha!")
+
+    def create_pipeline(ref):
+        requests.post("{}?ref={}".format(pipeline_url, ref), headers=headers)
+
     def cancel_prev_pipelines(commit):
         """Cancels previous pipelinesa associated with the same Change-Id."""
         # Get the running pipelines.
         r = requests.get(
-            "{}?status=running&status!=skipped".format(pipeline_url),
+            "{}?status=running&status!=skipped".format(pipelines_url),
             headers=headers)
         change_id = get_change_id(c.message)
-        for mr in r.json():
-            if mr["sha"] == commit.hexsha:
+        for pipeline in r.json():
+            if pipeline["sha"] == commit.hexsha:
                 continue
             remote_change_id = get_change_id(
-                repo.git.log(mr["sha"], n=1), silent=True)
+                repo.git.log(pipeline["sha"], n=1), silent=True)
             if remote_change_id is not None and remote_change_id == change_id:
                 # Found a pipeline to cancel.
                 d = requests.post(
-                    "{}/{}/cancel".format(pipeline_url, mr["id"]),
+                    "{}/{}/cancel".format(pipelines_url, pipeline["id"]),
                     headers=headers)
 
     # Sync up remote branches.
@@ -300,6 +313,9 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
             remote.push(
                 refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
                 force=True)
+            pipeline = get_pipeline_by_sha(c.hexsha)
+            if pipeline["status"] == "skipped":
+                create_pipeline(remote_branch)
         remote_branches[c.hexsha] = remote_branch
 
     # Create a merge request for each commit.
