@@ -10,7 +10,8 @@ import json
 from git import Repo
 import requests
 
-url = None
+mr_url = None
+pipeline_url = None
 headers = None
 remove_source_branch = False
 change_id_re = r"Change-Id: (.+?)(\s|$)"
@@ -34,7 +35,8 @@ def warn(msg):
 
 
 def load_gitreview_config(remote, root_dir):
-    global url
+    global mr_url
+    global pipeline_url
     global headers
     global remove_source_branch
     config = configparser.ConfigParser()
@@ -46,7 +48,8 @@ def load_gitreview_config(remote, root_dir):
     # Optional configs.
     if "remove_source_branch" in configs:
         remove_source_branch = configs.getboolean("remove_source_branch")
-    url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
+    mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
+    pipeline_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
     headers = {"PRIVATE-TOKEN": private_token}
 
 
@@ -56,12 +59,14 @@ def get_msg_title_description(msg):
     return title, desc
 
 
-def get_change_id(msg):
+def get_change_id(msg, silent=False):
     m = re.search(change_id_re, msg)
     if m:
         return m.group(1)
-    else:
+    elif not silent:
         raise ValueError("Didn't find the Change-Id in the commit message!")
+    else:
+        return None
 
 
 def get_remote_branch_name(local_branch, change_id):
@@ -77,7 +82,7 @@ def is_remote_stale(commits, remote_commits):
 
 def get_merge_request(branch):
     """Return a `MergeRequest` given branch name."""
-    r = requests.get("{}?state=opened".format(url), headers=headers)
+    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
     for mr in r.json():
         if mr["source_branch"] == branch:
             return MergeRequest(json_data=mr)
@@ -127,7 +132,7 @@ class MergeRequest:
             "description": self._description,
             "remove_source_branch": remove_source_branch,
         }
-        r = requests.post(url, headers=headers, data=data)
+        r = requests.post(mr_url, headers=headers, data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
@@ -152,7 +157,7 @@ class MergeRequest:
             "description": self._description,
         }
         r = requests.put(
-            "{}/{}".format(url, self._iid), headers=headers, data=data)
+            "{}/{}".format(mr_url, self._iid), headers=headers, data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
@@ -162,14 +167,15 @@ class MergeRequest:
     def submit(self):
         if self._iid is None:
             raise ValueError("Must set iid before submittng an MR!")
-        r = requests.put("{}/{}/merge".format(url, self._iid), headers=headers)
+        r = requests.put(
+            "{}/{}/merge".format(mr_url, self._iid), headers=headers)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
 
     def delete(self):
         if self._iid is None:
             raise ValueError("Must set iid before deleting an MR!")
-        r = requests.delete("{}/{}".format(url, self._iid), headers=headers)
+        r = requests.delete("{}/{}".format(mr_url, self._iid), headers=headers)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
 
@@ -178,7 +184,7 @@ def submit_merge_requests(remote, local_branch):
     """Submits merge requests."""
 
     # Get MRs created off of the given branch.
-    r = requests.get("{}?state=opened".format(url), headers=headers)
+    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
     mrs = collections.OrderedDict()
     for json_data in r.json():
         if json_data["source_branch"].startswith(local_branch):
@@ -255,6 +261,24 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
                 return True
         return False
 
+    def cancel_prev_pipelines(commit):
+        """Cancels previous pipelinesa associated with the same Change-Id."""
+        # Get the running pipelines.
+        r = requests.get(
+            "{}?status=running&status!=skipped".format(pipeline_url),
+            headers=headers)
+        change_id = get_change_id(c.message)
+        for mr in r.json():
+            if mr["sha"] == commit.hexsha:
+                continue
+            remote_change_id = get_change_id(
+                repo.git.log(mr["sha"], n=1), silent=True)
+            if remote_change_id is not None and remote_change_id == change_id:
+                # Found a pipeline to cancel.
+                d = requests.post(
+                    "{}/{}/cancel".format(pipeline_url, mr["id"]),
+                    headers=headers)
+
     # Sync up remote branches.
     remote.fetch(prune=True)
 
@@ -267,6 +291,7 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
     for c in commits:
         change_id = get_change_id(c.message)
         remote_branch = get_remote_branch_name(local_branch, change_id)
+        cancel_prev_pipelines(c)
         if not trigger_ci and can_skip_ci(c, remote_branch):
             remote.push(
                 refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
