@@ -274,6 +274,10 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
     def create_pipeline(ref):
         requests.post("{}?ref={}".format(pipeline_url, ref), headers=headers)
 
+    def retry_pipeline(p_id):
+        requests.post(
+            "{}/{}/retry".format(pipelines_url, p_id), headers=headers)
+
     def cancel_prev_pipelines(commit):
         """Cancels previous pipelinesa associated with the same Change-Id."""
         # Get the running pipelines.
@@ -316,6 +320,9 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
             pipeline = get_pipeline_by_sha(c.hexsha)
             if pipeline["status"] == "skipped":
                 create_pipeline(remote_branch)
+            elif pipeline["status"] == "failed" or pipeline[
+                    "status"] == "canceled":
+                retry_pipeline(pipeline["id"])
         remote_branches[c.hexsha] = remote_branch
 
     # Create a merge request for each commit.
