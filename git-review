@@ -31,6 +31,20 @@ class Bcolors:
     UNDERLINE = '\033[4m'
 
 
+class PipelineStatus:
+    CREATED = "created"
+    WAITING_FOR_RESOURCE = "waiting_for_resource"
+    PREPARING = "preparing"
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    CANCELED = "canceled"
+    SKIPPED = "skipped"
+    MANUAL = "manual"
+    SCHEDULED = "scheduled"
+
+
 def warn(msg):
     print(Bcolors.WARNING + "warning" + Bcolors.ENDC + ": {}".format(msg))
 
@@ -92,9 +106,21 @@ def get_merge_request(branch):
     return None
 
 
-def get_pipelines_by_sha(sha):
+def generate_pipeline_status_str(status):
+    status_str = ""
+    for i, s in enumerate(status):
+        if i == 0:
+            status_str += "?"
+        else:
+            status_str += "&"
+        status_str += "status=" + s
+    return status_str
+
+
+def get_pipelines_by_sha(sha, status=None):
     """Returns a list of `Pipeline`s associated with the given `sha`."""
-    r = requests.get(pipelines_url, headers=headers)
+    status_str = generate_pipeline_status_str(status)
+    r = requests.get(pipelines_url + status_str, headers=headers)
     pipelines = []
     for pipeline in r.json():
         if pipeline["sha"] == sha:
@@ -102,13 +128,17 @@ def get_pipelines_by_sha(sha):
     return pipelines
 
 
-def get_pipelines_by_change_id(change_id, repo):
+def get_pipelines_by_change_id(change_id, repo, status=None):
     """Returns a list of `Pipeline`s associated with the given `change_id`."""
-    r = requests.get(pipelines_url, headers=headers)
+    status_str = generate_pipeline_status_str(status)
+    r = requests.get(pipelines_url + status_str, headers=headers)
     pipelines = []
     for pipeline in r.json():
-        remote_change_id = get_change_id(
-            repo.git.log(pipeline["sha"], n=1), silent=True)
+        try:
+            remote_change_id = get_change_id(
+                repo.git.log(pipeline["sha"], n=1), silent=True)
+        except:
+            continue
         if remote_change_id is not None and remote_change_id == change_id:
             pipelines.append(Pipeline(json_data=pipeline))
     return pipelines
@@ -317,9 +347,9 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
         """Cancels previous pipelinesa associated with the same Change-Id."""
         # Get the running pipelines.
         change_id = get_change_id(commit.message)
-        for pipeline in get_pipelines_by_change_id(change_id, repo):
-            if pipeline.status != "running":
-                continue
+        for pipeline in get_pipelines_by_change_id(
+                change_id=change_id, repo=repo,
+                status=[PipelineStatus.RUNNING]):
             # Don't cancel myself.
             if pipeline.sha == commit.hexsha:
                 continue
@@ -347,12 +377,17 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
             remote.push(
                 refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
                 force=True)
-            pipelines = get_pipelines_by_sha(c.hexsha)
-            pipeline = pipelines[0]
-            if pipeline.status == "skipped":
-                pipeline.create()
-            elif pipeline.status == "failed" or pipeline.status == "canceled":
-                pipeline.retry()
+            pipelines = get_pipelines_by_sha(
+                sha=c.hexsha, status=[
+                    PipelineStatus.SKIPPED, PipelineStatus.FAILED,
+                    PipelineStatus.CANCELED
+                ])
+            if len(pipelines) != 0:
+                pipeline = pipelines[0]
+                if pipeline.status == "skipped":
+                    pipeline.create()
+                elif pipeline.status == "failed" or pipeline.status == "canceled":
+                    pipeline.retry()
         remote_branches[c.hexsha] = remote_branch
 
     # Create a merge request for each commit.
