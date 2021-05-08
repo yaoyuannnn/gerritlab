@@ -274,30 +274,36 @@ def submit_merge_requests(remote, local_branch):
     if len(mrs) == 0:
         print("No MRs found for this branch: {}".format(local_branch))
         return
-    for mr in mrs.values():
-        mr.print_info()
-        print("    [mergeable]: {}".format(mr.mergeable))
-
-    def find_mergeable_chain(mrs, root):
-        if not root.mergeable:
-            return []
-        else:
-            mergeables = [root]
-            if root.source_branch not in mrs:
-                return mergeables
-            else:
-                next_mr = mrs[root.source_branch]
-                mergeables.extend(find_mergeable_chain(mrs, next_mr))
-                return mergeables
 
     if "master" not in mrs:
         warn("Not a single MR interested in merging into master?")
         return
 
+    def get_mr_chain(mrs, root):
+        mr_chain = [root]
+        if root.source_branch not in mrs:
+            return mr_chain
+        else:
+            next_mr = mrs[root.source_branch]
+            mr_chain.extend(get_mr_chain(mrs, next_mr))
+            return mr_chain
+
     root = mrs["master"]
-    mergeables = find_mergeable_chain(mrs, root)
-    if len(mergeables) == 0:
-        warn("No MRs are currently mergeable.")
+    mr_chain = get_mr_chain(mrs, root)
+    for mr in mr_chain:
+        mr.print_info()
+        print("    [mergeable]: {}".format(mr.mergeable))
+
+    mergeable_count = 0
+    for mr in mr_chain:
+        if mr.mergeable:
+            mergeable_count += 1
+        else:
+            break
+    if mergeable_count == 0:
+        warn(
+            "No MRs can be merged into master as top of the MR chain is not "
+            "mergeable.")
         return
 
     if not dry_run:
