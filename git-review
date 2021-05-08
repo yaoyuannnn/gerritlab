@@ -9,6 +9,7 @@ import collections
 import json
 from git import Repo
 import requests
+import time
 
 mr_url = None
 pipeline_url = None
@@ -249,10 +250,13 @@ class MergeRequest:
     def submit(self):
         if self._iid is None:
             raise ValueError("Must set iid before submittng an MR!")
-        r = requests.put(
-            "{}/{}/merge".format(mr_url, self._iid), headers=headers)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
+        url = "{}/{}/merge".format(mr_url, self._iid)
+        while True:
+            r = requests.put(url, headers=headers)
+            if r.status_code == requests.codes.ok:
+                break
+            else:
+                time.sleep(2)
 
     def delete(self):
         if self._iid is None:
@@ -294,13 +298,13 @@ def submit_merge_requests(remote, local_branch):
         mr.print_info()
         print("    [mergeable]: {}".format(mr.mergeable))
 
-    mergeable_count = 0
+    mergeables = []
     for mr in mr_chain:
         if mr.mergeable:
-            mergeable_count += 1
+            mergeables.append(mr)
         else:
             break
-    if mergeable_count == 0:
+    if len(mergeables) == 0:
         warn(
             "No MRs can be merged into master as top of the MR chain is not "
             "mergeable.")
