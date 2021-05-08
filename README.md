@@ -50,19 +50,16 @@ origin master. The following shows an example that creates 5 new MRs.
 ```console
 $ git review origin
 
-SUCCESS.
+SUCCESS
 
-5 MRs to ssh://git@gitlab.example.com:12051/test/test.git:
-* onnx: Add graph inputs/outputs to the query list when running ORT. (https://gitlab.example.com/test/test/-/merge_requests/3442)
-    [new branch] onnx-support -> onnx-support-05c7 (master)
-* onnx: Add an option to return tensor values of the OnnxContext.  (https://gitlab.example.com/test/test/-/merge_requests/3443)
-    [new branch] onnx-support -> onnx-support-b929 (onnx-support-05c7)
-* onnx: Add subgraph inputs to the tensor query list. (https://gitlab.example.com/test/test/-/merge_requests/3444)
-    [new branch] onnx-support -> onnx-support-9253 (onnx-support-b929)
-* onnx: Add input dtypes to the subgraph if necessary. (https://gitlab.example.com/test/test/-/merge_requests/3445)
-    [new branch] onnx-support -> onnx-support-87cc (onnx-support-9253)
-* onnx: Add the control flow Loop operator. (https://gitlab.example.com/test/test/-/merge_requests/3446)
-    [new branch] onnx-support -> onnx-support-9b4b (onnx-support-87cc)
+New MRs:
+* https://gitlab.example.com/arch/myproject/-/merge_requests/3719 tests: Add commit a.
+    master -> master-2c77 (master)
+* https://gitlab.example.com/arch/myproject/-/merge_requests/3720 tests: Add commit b.
+    master -> master-857b (master-2c77)
+* https://gitlab.example.com/arch/myproject/-/merge_requests/3721 tests: Add commit c.
+    master -> master-79e5 (master-857b)
+To ssh://git@gitlab.example.com:12051/arch/myproject.git
 ```
 
 ## Accepting MRs.
@@ -70,12 +67,20 @@ SUCCESS.
 ```console
 $ git review -m
 Submitting merge requests:
-* onnx: Add the control flow Loop operator.
+* https://gitlab.example.com/myproject/-/merge_requests/110 tests: Add commit a.
+    [mergeable]: True
+* https://gitlab.example.com/myproject/-/merge_requests/111 tests: Add commit b.
+    [mergeable]: True
+* https://gitlab.example.com/myproject/-/merge_requests/109 tests: Add commit c.
     [mergeable]: True
 
-SUCCESS.
+SUCCESS
 
-1 MRs submitted at ssh://git@gitlab.example.com:12051/test/test.git:
-* onnx: Add the control flow Loop operator. (https://gitlab.example.com/test/test/-/merge_requests/3446)
-    [new branch] onnx-support -> onnx-support-9b4b (master)
-```
+New Merged MRs:
+* https://gitlab-master.example.com/myproject/-/merge_requests/110 tests: Add commit a.
+    master -> master-2c77 (master)
+* https://gitlab-master.example.com/myproject/-/merge_requests/111 tests: Add commit b.
+    master -> master-857b (master)
+* https://gitlab-master.example.com/myproject/-/merge_requests/109 tests: Add commit c.
+    master -> master-79e5 (master)
+To ssh://git@gitlab.example.com:12051/myproject.git
