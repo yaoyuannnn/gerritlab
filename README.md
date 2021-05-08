@@ -45,7 +45,7 @@ private_token=[your-private-token]
 $ git review origin
 ```
 This will create an MR for each commit on the current branch that's ahead of
-origin master. The following shows an example that creates 5 new MRs.
+origin master. The following shows an example that creates 3 new MRs.
 
 ```console
 $ git review origin
