@@ -453,6 +453,9 @@ def main():
     remote = repo.remote(name=args.remote)
     local_branch = args.local_branch
     if args.local_branch is None:
+        if repo.head.is_detached:
+            raise Exception(
+                "HEAD is detached. Are you in the process of a rebase?")
         local_branch = repo.active_branch.name
 
     global dry_run
