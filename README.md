@@ -5,18 +5,18 @@ when you really want to create dependent MRs so they can be reviewed in
 parallel. With great amount of manual effort and carefulness,  you can actually
 achieve that by setting an MR's target branch to the one it's dependent on and
 making sure before merging any MRs, you change their target branch back to
-`master`. This becomes pretty error-prone with more than 2 MRs, not to mention
-that you must merge the MRs strictly following the dependency order (otherwise,
-branches can be accidentally deleted where outstanding MRs still have
-dependencies).
+`master` (or any default main branch in your project). This becomes pretty
+error-prone with more than 2 MRs, not to mention that you must merge the MRs
+strictly following the dependency order (otherwise, branches can be
+accidentally deleted where outstanding MRs still have dependencies).
 
-Does this somehow remind you of some good things about Gerrit? Yeah, in Gerrit,
+Does this somehow remind you of the good things about Gerrit? Yeah, in Gerrit,
 nothing stops you from creating dependent reviews, since every commit creates a
 new review. To bring this Gerrit-style code review to GitLab repos, this
-project creates a simple script that helps you create dependent MRs.
+project creates a simple script that helps you grealy simplify the steps to
+create/merge dependent MRs.
 
-To use this, make sure you put the `git-review` script in PATH and follow these
-steps:
+To use this, make sure you have `git-review` in PATH and follow these steps:
 
 ## Install Change-Id commit-msg hook.
 You can install it by:
@@ -39,7 +39,7 @@ project_id=1234
 private_token=[your-private-token]
 ```
 
-## Creating MRs.
+## Create MRs.
 
 ```console
 $ git review origin
@@ -62,7 +62,7 @@ New MRs:
 To ssh://git@gitlab.example.com:12051/arch/myproject.git
 ```
 
-## Accepting MRs.
+## Merge MRs.
 
 ```console
 $ git review -m
