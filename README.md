@@ -22,7 +22,7 @@ steps:
 You can install it by:
 
 ```console
-$ curl -Lo .git/hooks/commit-msg http://review.example.com/tools/hooks/commit-msg
+$ cp commit-msg path-to-your-project/.git/hooks/commit-msg
 ```
 
 ## Set up a .gitreview.
