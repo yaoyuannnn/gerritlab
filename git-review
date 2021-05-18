@@ -440,7 +440,8 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Commandline flags for using git-review.")
     parser.add_argument(
         "remote", type=str, nargs="?", default="origin",
         help="The remote to push the reviews.")
