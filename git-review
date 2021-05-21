@@ -201,6 +201,10 @@ class MergeRequest:
     def source_branch(self):
         return self._source_branch
 
+    @property
+    def target_branch(self):
+        return self._target_branch
+
     def print_info(self, verbose=False):
         print("* {} {}".format(self._web_url, self._title))
         if verbose:
