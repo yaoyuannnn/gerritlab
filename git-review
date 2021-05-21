@@ -109,6 +109,39 @@ def get_merge_request(branch):
     return None
 
 
+def get_all_merge_requests(branch):
+    """Return all `MergeRequest`s created off of `branch`."""
+    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
+    mrs = []
+    for json_data in r.json():
+        if json_data["source_branch"].startswith(
+                branch) and json_data["author"]["name"] == username:
+            mrs.append(MergeRequest(json_data=json_data))
+    return mrs
+
+
+def get_merge_request_chain(mrs):
+    """Returns the MR dependency chain."""
+    source_branches = set([mr.source_branch for mr in mrs])
+    root = None
+    for mr in mrs:
+        if mr.target_branch not in source_branches:
+            root = mr
+            break
+    mrs_dict = {mr.target_branch: mr for mr in mrs}
+
+    def get_merge_request_chain_inner(mrs, root):
+        mr_chain = [root]
+        if root.source_branch not in mrs:
+            return mr_chain
+        else:
+            next_mr = mrs[root.source_branch]
+            mr_chain.extend(get_merge_request_chain_inner(mrs, next_mr))
+            return mr_chain
+
+    return get_merge_request_chain_inner(mrs_dict, root)
+
+
 def generate_pipeline_status_str(status):
     status_str = ""
     for i, s in enumerate(status):
@@ -276,31 +309,16 @@ def submit_merge_requests(remote, local_branch):
     """Submits merge requests."""
 
     # Get MRs created off of the given branch.
-    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
-    mrs = collections.OrderedDict()
-    for json_data in r.json():
-        if json_data["source_branch"].startswith(
-                local_branch) and json_data["author"]["name"] == username:
-            mrs[json_data["target_branch"]] = MergeRequest(json_data=json_data)
+    mrs = get_all_merge_requests(local_branch)
     if len(mrs) == 0:
         print("No MRs found for this branch: {}".format(local_branch))
         return
 
-    if "master" not in mrs:
+    if "master" not in [mr.target_branch for mr in mrs]:
         warn("Not a single MR interested in merging into master?")
         return
 
-    def get_mr_chain(mrs, root):
-        mr_chain = [root]
-        if root.source_branch not in mrs:
-            return mr_chain
-        else:
-            next_mr = mrs[root.source_branch]
-            mr_chain.extend(get_mr_chain(mrs, next_mr))
-            return mr_chain
-
-    root = mrs["master"]
-    mr_chain = get_mr_chain(mrs, root)
+    mr_chain = get_merge_request_chain(mrs)
     for mr in mr_chain:
         mr.print_info()
         print("    [mergeable]: {}".format(mr.mergeable))
