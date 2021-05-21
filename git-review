@@ -139,7 +139,19 @@ def get_merge_request_chain(mrs):
             mr_chain.extend(get_merge_request_chain_inner(mrs, next_mr))
             return mr_chain
 
-    return get_merge_request_chain_inner(mrs_dict, root)
+    mr_chain = get_merge_request_chain_inner(mrs_dict, root)
+    if len(mr_chain) < len(mrs):
+        warn("The current MRs do not form a dependency chain.")
+        print("Current MRs:")
+        for mr in mrs:
+            mr.print_info()
+        if len(mr_chain) > 0:
+            print("\nFound MR chain:")
+            for mr in mr_chain:
+                mr.print_info()
+        sys.exit(1)
+
+    return mr_chain
 
 
 def generate_pipeline_status_str(status):
