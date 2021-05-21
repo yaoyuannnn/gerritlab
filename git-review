@@ -409,70 +409,96 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
     # Get the local commits that are ahead of the origin/master.
     commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
     commits.reverse()
-
-    # Push the commits to remote by creating a new branch for each.
-    remote_branches = {}
-    for c in commits:
-        change_id = get_change_id(c.message)
-        remote_branch = get_remote_branch_name(local_branch, change_id)
-        cancel_prev_pipelines(c)
-        if not trigger_ci and can_skip_ci(c, remote_branch):
-            remote.push(
-                refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
-                force=True, o="ci.skip")
-        else:
-            remote.push(
-                refspec="{}:refs/heads/{}".format(c.hexsha, remote_branch),
-                force=True)
-            pipelines = get_pipelines_by_sha(
-                sha=c.hexsha, status=[
-                    PipelineStatus.SKIPPED, PipelineStatus.FAILED,
-                    PipelineStatus.CANCELED
-                ])
-            if len(pipelines) != 0:
-                pipeline = pipelines[0]
-                if pipeline.status == "skipped":
-                    pipeline.create()
-                elif pipeline.status == "failed" or pipeline.status == "canceled":
-                    pipeline.retry()
-        remote_branches[c.hexsha] = remote_branch
-
-    # Create a merge request for each commit.
-    new_mrs = []
-    updated_mrs = []
+    Commit = collections.namedtuple(
+        "Commit", ["commit", "source_branch", "target_branch"])
+    commits_data = set()
     for idx, c in enumerate(commits):
-        change_id = get_change_id(c.message)
-        source_branch = remote_branches[c.hexsha]
-        if idx == 0:
-            # If this is the oldest commit, then the target branch should be
-            # master.
-            target_branch = "master"
-        else:
-            target_branch = remote_branches[commits[idx - 1].hexsha]
-        title, desp = get_msg_title_description(c.message)
-        mr = get_merge_request(source_branch)
-        if mr is not None:
-            mr.update(
-                source_branch=source_branch, target_branch=target_branch,
-                title=title, description=desp)
-            updated_mrs.append(mr)
-        else:
-            mr = MergeRequest(
-                source_branch=source_branch, target_branch=target_branch,
-                title=title, description=desp)
-            mr.create()
-            new_mrs.append(mr)
-    print("\n{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
-    if len(new_mrs) > 0:
-        print("New MRs:")
-        for mr in new_mrs:
-            mr.print_info(verbose=True)
-        print()
-    if len(updated_mrs) > 0:
+        source_branch = get_remote_branch_name(
+            local_branch, get_change_id(c.message))
+        target_branch = "master" if idx == 0 else get_remote_branch_name(
+            local_branch, get_change_id(commits[idx - 1].message))
+        commits_data.add(Commit(c, source_branch, target_branch))
+
+    # Before we update the existing the MRs or create new MRs, there are a few
+    # important notes:
+    #
+    # 1) If an MR's source branch becomes a subset of its target branch, that
+    #    is, commits in the source branch are all included in the target branch,
+    #    the MR will be auto-merged as it becomes meaningless.
+    # 2) Because of 1, we must be careful when updating the existing MRs. For
+    #    example, there are 3 existing MRs mr0, mr1 and mr2, with their
+    #    dependencies as master <= mr0 <= mr1 <= mr2. If we locally rebase the
+    #    commits to be master <= mr2 <= mr0 <= mr1, pushing the new commits to
+    #    each MR's source branch will end up auto-merging mr2, as mr'2 target
+    #    branch mr1 now contains its commit. To avoid this, we must update an
+    #    MR's target branch before pushing the new commit. Also, we must update
+    #    MRs from the end of the existing MR dependency chain. In this example,
+    #    we must update mr2's target branch first and then push the new commit.
+    #    The same goes for mr0 and mr1.
+    #
+    # The following code updates/creates MRs with the above notes in mind.
+
+    # Get existing MRs created off of the given branch.
+    current_mrs = get_all_merge_requests(local_branch)
+    current_mr_chain = get_merge_request_chain(current_mrs)
+
+    # Update the existing MRs from the end of the MR dependency chain.
+    if len(current_mr_chain) > 0:
         print("Updated MRs:")
-        for mr in updated_mrs:
-            mr.print_info(verbose=True)
-        print()
+    updated_commits = set()
+    for mr in reversed(current_mr_chain):
+        for c in commits_data:
+            if c.source_branch == mr.source_branch:
+                # Update the target branch of this MR.
+                title, desp = get_msg_title_description(c.commit.message)
+                mr.update(
+                    source_branch=source_branch, target_branch=c.target_branch,
+                    title=title, description=desp)
+                mr.print_info(verbose=True)
+                # Push commits to this branch (i.e. source branch of the MR).
+                cancel_prev_pipelines(c.commit)
+                if not trigger_ci and can_skip_ci(c.commit, source_branch):
+                    remote.push(
+                        refspec="{}:refs/heads/{}".format(
+                            c.commit.hexsha, source_branch), force=True)
+                else:
+                    remote.push(
+                        refspec="{}:refs/heads/{}".format(
+                            c.commit.hexsha, source_branch), force=True)
+                    pipelines = get_pipelines_by_sha(
+                        sha=c.commit.hexsha, status=[
+                            PipelineStatus.SKIPPED, PipelineStatus.FAILED,
+                            PipelineStatus.CANCELED
+                        ])
+                    if len(pipelines) != 0:
+                        pipeline = pipelines[0]
+                        if pipeline.status == "skipped":
+                            pipeline.create()
+                        elif pipeline.status == "failed" or \
+                            pipeline.status == "canceled":
+                            pipeline.retry()
+                updated_commits.add(c)
+                break
+    print()
+
+    # Create new MRs.
+    commits_data -= updated_commits
+    if len(commits_data) > 0:
+        print("New MRs:")
+    for c in commits_data:
+        # Push the commit to remote by creating a new branch.
+        remote.push(
+            refspec="{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch),
+            force=True)
+        title, desp = get_msg_title_description(c.commit.message)
+        mr = MergeRequest(
+            source_branch=c.source_branch, target_branch=c.target_branch,
+            title=title, description=desp)
+        mr.create()
+        mr.print_info(verbose=True)
+    print()
+
+    print("{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
     print("To {}".format(remote.url))
 
 
