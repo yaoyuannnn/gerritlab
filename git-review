@@ -320,6 +320,8 @@ class MergeRequest:
 def submit_merge_requests(remote, local_branch):
     """Submits merge requests."""
 
+    print("\nSubmitting merge requests:")
+
     # Get MRs created off of the given branch.
     mrs = get_all_merge_requests(local_branch)
     if len(mrs) == 0:
@@ -444,7 +446,7 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
 
     # Update the existing MRs from the end of the MR dependency chain.
     if len(current_mr_chain) > 0:
-        print("Updated MRs:")
+        print("\nUpdated MRs:")
     updated_commits = set()
     for mr in reversed(current_mr_chain):
         for c in commits_data:
@@ -479,12 +481,11 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
                             pipeline.retry()
                 updated_commits.add(c)
                 break
-    print()
 
     # Create new MRs.
     commits_data -= updated_commits
     if len(commits_data) > 0:
-        print("New MRs:")
+        print("\nNew MRs:")
     for c in commits_data:
         # Push the commit to remote by creating a new branch.
         remote.push(
@@ -543,7 +544,6 @@ def main():
 
     # Submit the MRs if they become mergeable.
     if args.merge:
-        print("Submitting merge requests:")
         submit_merge_requests(remote, local_branch)
         sys.exit(0)
 
