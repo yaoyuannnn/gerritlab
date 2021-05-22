@@ -15,6 +15,7 @@ mr_url = None
 pipeline_url = None
 pipelines_url = None
 headers = None
+main_branch = "master"
 remove_source_branch = False
 change_id_re = r"Change-Id: (.+?)(\s|$)"
 dry_run = False
@@ -57,6 +58,7 @@ def load_gitreview_config(remote, root_dir):
     global pipeline_url
     global pipelines_url
     global headers
+    global main_branch
     global remove_source_branch
     config = configparser.ConfigParser()
     config.read(os.path.join(root_dir, ".gitreview"))
@@ -65,6 +67,8 @@ def load_gitreview_config(remote, root_dir):
     project_id = configs["project_id"]
     private_token = configs["private_token"]
     # Optional configs.
+    if "main_branch" in configs:
+        main_branch = configs["main_branch"]
     if "remove_source_branch" in configs:
         remove_source_branch = configs.getboolean("remove_source_branch")
     mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
@@ -330,8 +334,10 @@ def submit_merge_requests(remote, local_branch):
         print("No MRs found for this branch: {}".format(local_branch))
         return
 
-    if "master" not in [mr.target_branch for mr in mrs]:
-        warn("Not a single MR interested in merging into master?")
+    if main_branch not in [mr.target_branch for mr in mrs]:
+        warn(
+            "Not a single MR interested in merging into {}?".format(
+                main_branch))
         return
 
     mr_chain = get_merge_request_chain(mrs)
@@ -347,15 +353,15 @@ def submit_merge_requests(remote, local_branch):
             break
     if len(mergeables) == 0:
         warn(
-            "No MRs can be merged into master as top of the MR chain is not "
-            "mergeable.")
+            "No MRs can be merged into {} as top of the MR chain is not "
+            "mergeable.".format(main_branch))
         return
 
     if not dry_run:
         # We must submit MRs from the oldest. And before submitting an MR, we
-        # must change its target_branch to master.
+        # must change its target_branch to the main branch.
         for mr in mergeables:
-            mr.update(target_branch="master")
+            mr.update(target_branch=main_branch)
             #FIXME: Poll the merge req status and waiting until
             # merge_status is no longer "checking".
             mr.submit()
@@ -410,8 +416,9 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
     # Sync up remote branches.
     remote.fetch(prune=True)
 
-    # Get the local commits that are ahead of the origin/master.
-    commits = list(repo.iter_commits("origin/master..{}".format(local_branch)))
+    # Get the local commits that are ahead of the origin/main_branch.
+    commits = list(
+        repo.iter_commits("origin/{}..{}".format(main_branch, local_branch)))
     commits.reverse()
     Commit = collections.namedtuple(
         "Commit", ["commit", "source_branch", "target_branch"])
@@ -419,7 +426,7 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
     for idx, c in enumerate(commits):
         source_branch = get_remote_branch_name(
             local_branch, get_change_id(c.message))
-        target_branch = "master" if idx == 0 else get_remote_branch_name(
+        target_branch = main_branch if idx == 0 else get_remote_branch_name(
             local_branch, get_change_id(commits[idx - 1].message))
         commits_data.add(Commit(c, source_branch, target_branch))
 
