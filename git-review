@@ -122,6 +122,8 @@ def get_all_merge_requests(branch):
 
 def get_merge_request_chain(mrs):
     """Returns the MR dependency chain."""
+    if len(mrs) == 0:
+        return []
     source_branches = set([mr.source_branch for mr in mrs])
     root = None
     for mr in mrs:
