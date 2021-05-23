@@ -16,10 +16,13 @@ new review. To bring this Gerrit-style code review to GitLab repos, this
 project creates a simple script that helps you grealy simplify the steps to
 create/merge dependent MRs.
 
-To use this, make sure you have `git-review` in PATH and follow these steps:
+## Install git-review
+Clone the repo and put the directoy to your PATH. Make sure it comes before any
+existing `git-review` in PATH.
 
 ## Install Change-Id commit-msg hook.
-You can install it by:
+We need a commit-msg hook that will add a Change-Id to every commit.  You can
+install it by:
 
 ```console
 $ cp commit-msg path-to-your-project/.git/hooks/commit-msg
@@ -37,15 +40,22 @@ a private token that can be used to access the GitLab repo. An example
 host=https://gitlab.example.com
 project_id=1234
 private_token=[your-private-token]
+main_branch=master
+remove_source_branch=True
 ```
 
 ## Create MRs.
 
+To create MRs, simply do:
+
 ```console
 $ git review origin
 ```
+
 This will create an MR for each commit on the current branch that's ahead of
-origin master. The following shows an example that creates 3 new MRs.
+origin/master. If a commit finds an existing MR with the same Change-Id in the
+GitLab repo, the MR will be updated. The following shows an example that
+creates 3 new MRs.
 
 ```console
 $ git review origin
@@ -63,6 +73,10 @@ To ssh://git@gitlab.example.com:12051/arch/myproject.git
 ```
 
 ## Merge MRs.
+
+For merging MRs, you use the same command with a `-m` flag to merge any
+mergeable MRs created off of the current branch, which takes into account the
+MR dependency chain.
 
 ```console
 $ git review -m
