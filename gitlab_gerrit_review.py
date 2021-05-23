@@ -51,14 +51,21 @@ def warn(msg):
     print(Bcolors.WARNING + "warning" + Bcolors.ENDC + ": {}".format(msg))
 
 
-def load_gitreview_config(remote, root_dir):
+def load_config(remote, repo):
+    global username
+    global email
     global mr_url
     global pipeline_url
     global pipelines_url
     global headers
     global global_target_branch
     global remove_source_branch
+
+    username = repo.config_reader().get_value("user", "name")
+    email = repo.config_reader().get_value("user", "email")
+
     config = configparser.ConfigParser()
+    root_dir = repo.git.rev_parse("--show-toplevel")
     config.read(os.path.join(root_dir, ".gitreview"))
     configs = config[remote]
     host = configs["host"]
@@ -508,11 +515,7 @@ def main():
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
-    global username
-    global email
-    username = repo.config_reader().get_value("user", "name")
-    email = repo.config_reader().get_value("user", "email")
-    load_gitreview_config(args.remote, repo.git.rev_parse("--show-toplevel"))
+    load_config(args.remote, repo)
     remote = repo.remote(name=args.remote)
     local_branch = args.local_branch
     if args.local_branch is None:
