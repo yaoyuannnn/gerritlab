@@ -260,9 +260,7 @@ class MergeRequest:
         print("* {} {}".format(self._web_url, self._title))
         if verbose:
             print(
-                "    {} -> {} ({})".format(
-                    self._local_branch, self._source_branch,
-                    self._target_branch))
+                "    {} -> {}".format(self._source_branch, self._target_branch))
 
     def create(self):
         data = {
