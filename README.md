@@ -18,11 +18,13 @@ create/merge dependent MRs.
 
 ## Install git-review
 Clone the repo and put the directoy to your PATH. Make sure it comes before any
-existing `git-review` in PATH.
+existing `git-review` in PATH so when you do `git review`, the right executable
+is picked up by Git.
 
 ## Install Change-Id commit-msg hook.
-We need a commit-msg hook that will add a Change-Id to every commit.  You can
-install it by:
+We need a commit-msg hook that will add a Change-Id to every commit. This
+Change-Id will be used as a key to find if there's an existing MR in the GitLab
+repo. The following installs the commit-msg hook.
 
 ```console
 $ cp commit-msg path-to-your-project/.git/hooks/commit-msg
@@ -32,15 +34,20 @@ $ cp commit-msg path-to-your-project/.git/hooks/commit-msg
 
 Before using the script, you need to create a .gitreview file in the root
 directory of your project. It needs to contain info like GitLab project ID and
-a private token that can be used to access the GitLab repo. An example
-`.gitreview` looks like the following:
+a private token that can be used to access the GitLab repo. Current optional
+configuration flags include `target_branch` and `remove_source_branch`.
+`target_branch` represents the target branch that you want the MRs to
+eventually merge into. By default, `target_branch` is `master`.
+`remove_source_branch` can be used to delete the source branch of an MR once
+it's merged. By default, this is set to `True`.  The following shows an example
+of `.gitreview`:
 
 ```ini
 [origin]
 host=https://gitlab.example.com
 project_id=1234
 private_token=[your-private-token]
-main_branch=master
+target_branch=master
 remove_source_branch=True
 ```
 
