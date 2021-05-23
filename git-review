@@ -471,14 +471,15 @@ def create_merge_requests(repo, remote, local_branch):
                 # Update the target branch of this MR.
                 title, desp = get_msg_title_description(c.commit.message)
                 mr.update(
-                    source_branch=source_branch, target_branch=c.target_branch,
-                    title=title, description=desp)
+                    source_branch=c.source_branch,
+                    target_branch=c.target_branch, title=title,
+                    description=desp)
                 mr.print_info(verbose=True)
                 # Push commits to this branch (i.e. source branch of the MR).
                 cancel_prev_pipelines(c.commit)
                 remote.push(
                     refspec="{}:refs/heads/{}".format(
-                        c.commit.hexsha, source_branch), force=True)
+                        c.commit.hexsha, c.source_branch), force=True)
                 updated_commits.add(c)
                 break
 
