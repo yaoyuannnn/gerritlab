@@ -382,21 +382,27 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
         """Finds out if this commit can skip the CI pipeline."""
         # Chek if the commit actually changes anything compared to the remote
         # that requries a new CI pipeline.
-        if "origin/{}".format(remote_branch) in [r.name for r in remote.refs]:
+        if "{}/{}".format(remote.name,
+                          remote_branch) in [r.name for r in remote.refs]:
             diff = list(
                 repo.iter_commits(
-                    "origin/{}..{}".format(remote_branch, commit.hexsha)))
+                    "{}/{}..{}".format(
+                        remote.name, remote_branch, commit.hexsha)))
             if not any(diff):
                 return True
 
             remote_commit = list(
-                repo.iter_commits(rev="origin/{}".format(remote_branch)))[0]
+                repo.iter_commits(
+                    rev="{}/{}".format(remote.name, remote_branch)))[0]
             if get_change_id(remote_commit.message) != get_change_id(
                     commit.message):
                 raise Exception(
                     "The local commit has a different Change-Id from the "
                     "one on the same branch in remote!")
             if not any(commit.diff(remote_commit)):
+                # The commit's code doesn't have any diff against the remote
+                # commit, meaning that other stuff such as the commit message
+                # has been modified.
                 return True
         return False
 
@@ -471,7 +477,8 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
                 if not trigger_ci and can_skip_ci(c.commit, source_branch):
                     remote.push(
                         refspec="{}:refs/heads/{}".format(
-                            c.commit.hexsha, source_branch), force=True)
+                            c.commit.hexsha, source_branch), force=True,
+                        o="ci.skip")
                 else:
                     remote.push(
                         refspec="{}:refs/heads/{}".format(
