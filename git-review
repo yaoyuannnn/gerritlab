@@ -375,7 +375,7 @@ def submit_merge_requests(remote, local_branch):
         print("To {}".format(remote.url))
 
 
-def create_merge_requests(repo, remote, local_branch, trigger_ci):
+def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
 
     def can_skip_ci(commit, remote_branch):
@@ -412,7 +412,7 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
         change_id = get_change_id(commit.message)
         for pipeline in get_pipelines_by_change_id(
                 change_id=change_id, repo=repo,
-                status=[PipelineStatus.RUNNING]):
+                status=[PipelineStatus.RUNNING, PipelineStatus.PENDING]):
             # Don't cancel myself.
             if pipeline.sha == commit.hexsha:
                 continue
@@ -474,27 +474,9 @@ def create_merge_requests(repo, remote, local_branch, trigger_ci):
                 mr.print_info(verbose=True)
                 # Push commits to this branch (i.e. source branch of the MR).
                 cancel_prev_pipelines(c.commit)
-                if not trigger_ci and can_skip_ci(c.commit, source_branch):
-                    remote.push(
-                        refspec="{}:refs/heads/{}".format(
-                            c.commit.hexsha, source_branch), force=True,
-                        o="ci.skip")
-                else:
-                    remote.push(
-                        refspec="{}:refs/heads/{}".format(
-                            c.commit.hexsha, source_branch), force=True)
-                    pipelines = get_pipelines_by_sha(
-                        sha=c.commit.hexsha, status=[
-                            PipelineStatus.SKIPPED, PipelineStatus.FAILED,
-                            PipelineStatus.CANCELED
-                        ])
-                    if len(pipelines) != 0:
-                        pipeline = pipelines[0]
-                        if pipeline.status == "skipped":
-                            pipeline.create()
-                        elif pipeline.status == "failed" or \
-                            pipeline.status == "canceled":
-                            pipeline.retry()
+                remote.push(
+                    refspec="{}:refs/heads/{}".format(
+                        c.commit.hexsha, source_branch), force=True)
                 updated_commits.add(c)
                 break
 
@@ -534,9 +516,6 @@ def main():
     parser.add_argument(
         "--dry-run", "-d", action="store_true", default=False,
         help="Dry run the command.")
-    parser.add_argument(
-        "--trigger-ci", "-t", action="store_true", default=False,
-        help="Trigger the CI pipeline.")
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
@@ -563,7 +542,7 @@ def main():
         submit_merge_requests(remote, local_branch)
         sys.exit(0)
 
-    create_merge_requests(repo, remote, local_branch, args.trigger_ci)
+    create_merge_requests(repo, remote, local_branch)
 
 
 if __name__ == "__main__":
