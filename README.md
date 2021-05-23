@@ -61,8 +61,8 @@ $ git review origin
 
 This will create an MR for each commit on the current branch that's ahead of
 origin/master. If a commit finds an existing MR with the same Change-Id in the
-GitLab repo, the MR will be updated. The following shows an example that
-creates 3 new MRs.
+GitLab repo, the MR will be updated with amended commit. The following shows an
+example that creates 3 new MRs.
 
 ```console
 $ git review origin
@@ -81,7 +81,7 @@ To ssh://git@gitlab.example.com:12051/arch/myproject.git
 
 ## Merge MRs.
 
-For merging MRs, you use the same command with a `-m` flag to merge any
+For merging MRs, you use the same git command with a `-m` flag to merge any
 mergeable MRs created off of the current branch, which takes into account the
 MR dependency chain.
 
