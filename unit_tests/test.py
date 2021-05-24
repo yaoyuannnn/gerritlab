@@ -11,6 +11,7 @@ repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
 repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
 import gitlab_gerrit_review as review
+import merge_request
 import global_vars
 import utils
 
@@ -50,7 +51,7 @@ class MergeRequestTest(unittest.TestCase):
     def _validate_mr(self, commit, target_branch):
         source_branch = utils.get_remote_branch_name(
             self._local_branch, utils.get_change_id(commit.message))
-        mr = review.get_merge_request(self._remote, source_branch)
+        mr = merge_request.get_merge_request(self._remote, source_branch)
         self.assertTrue(mr != None)
         self.assertEqual(mr.target_branch, target_branch)
         mr_commits = mr.get_commits()

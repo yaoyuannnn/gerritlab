@@ -5,6 +5,7 @@ import requests
 import utils
 import global_vars
 
+
 class PipelineStatus:
     CREATED = "created"
     WAITING_FOR_RESOURCE = "waiting_for_resource"
