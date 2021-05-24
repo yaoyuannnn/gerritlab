@@ -49,6 +49,10 @@ class MergeRequestTest(unittest.TestCase):
         self._test_repo.index.commit(commit_msg)
         return self._test_repo.head.commit
 
+    def _amend_commit(self, commit, new_commit_msg):
+        self._test_repo.git.commit("--amend", message=new_commit_msg)
+        return self._test_repo.head.commit
+
     def _validate_mr(self, commit, target_branch):
         source_branch = utils.get_remote_branch_name(
             self._local_branch, utils.get_change_id(commit.message))
@@ -89,8 +93,18 @@ class MergeRequestTest(unittest.TestCase):
         for mr in mrs:
             mr.delete(delete_source_branch=True)
 
-    def test_update_mrs(self):
-        pass
+    def test_update_single_mr(self):
+        # Create an MR.
+        commit = self._create_commit("new_file.txt", "Add a new file.")
+        review.create_merge_requests(
+            self._test_repo, self._remote, self._local_branch)
+        # Update the MR.
+        amended_commit = self._amend_commit(commit, "New commit message.")
+        review.create_merge_requests(
+            self._test_repo, self._remote, self._local_branch)
+        # Validate the updated MR.
+        mr = self._validate_mr(amended_commit, global_vars.global_target_branch)
+        mr.delete(delete_source_branch=True)
 
 
 if __name__ == "__main__":
