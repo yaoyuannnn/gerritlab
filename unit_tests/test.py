@@ -47,6 +47,7 @@ class MergeRequestTest(unittest.TestCase):
         open(new_file_path, "wb").close()
         self._test_repo.index.add([new_file_path])
         self._test_repo.index.commit(commit_msg)
+        return self._test_repo.head.commit
 
     def _validate_mr(self, commit, target_branch):
         source_branch = utils.get_remote_branch_name(
@@ -61,25 +62,25 @@ class MergeRequestTest(unittest.TestCase):
 
     def test_create_single_mr(self):
         # Create an MR.
-        self._create_commit("new_file.txt", "Add a new file.")
+        commit = self._create_commit("new_file.txt", "Add a new file.")
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
-        commit = self._test_repo.head.commit
         mr = self._validate_mr(commit, global_vars.global_target_branch)
         mr.delete(delete_source_branch=True)
 
     def test_create_multiple_mrs(self):
         # Create three MRs.
-        self._create_commit("new_file0.txt", "Add a new file0.")
-        self._create_commit("new_file1.txt", "Add a new file1.")
-        self._create_commit("new_file2.txt", "Add a new file2.")
+        commits = []
+        commits.append(self._create_commit("new_file0.txt", "Add a new file0."))
+        commits.append(self._create_commit("new_file1.txt", "Add a new file1."))
+        commits.append(self._create_commit("new_file2.txt", "Add a new file2."))
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         mrs = []
         # Validate the MRs.
-        for i in reversed(range(3)):
-            commit = self._test_repo.commit("HEAD~{}".format(i))
-            if i == 2:
+        for i in range(3):
+            commit = commits[i]
+            if i == 0:
                 mr = self._validate_mr(commit, global_vars.global_target_branch)
             else:
                 mr = self._validate_mr(commit, mrs[-1].source_branch)
