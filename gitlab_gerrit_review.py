@@ -9,6 +9,7 @@ from utils import Bcolors, warn
 import global_vars
 import merge_request
 import pipeline
+from pipeline import PipelineStatus
 
 
 def submit_merge_requests(remote, local_branch):
@@ -98,14 +99,14 @@ def create_merge_requests(repo, remote, local_branch):
         """Cancels previous pipelinesa associated with the same Change-Id."""
         # Get the running pipelines.
         change_id = utils.get_change_id(commit.message)
-        for pipeline in pipeline.get_pipelines_by_change_id(
+        for p in pipeline.get_pipelines_by_change_id(
                 change_id=change_id, repo=repo,
                 status=[PipelineStatus.RUNNING, PipelineStatus.PENDING]):
             # Don't cancel myself.
-            if pipeline.sha == commit.hexsha:
+            if p.sha == commit.hexsha:
                 continue
             # Cancel this previous pipeline.
-            pipeline.cancel()
+            p.cancel()
 
     # Sync up remote branches.
     remote.fetch(prune=True)

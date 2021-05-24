@@ -37,16 +37,17 @@ class Pipeline:
     def create(self, ref):
         requests.post(
             "{}?ref={}".format(global_var.pipeline_url, self._ref),
-            headers=headers)
+            headers=global_vars.headers)
 
     def retry(self):
         requests.post(
-            "{}/{}/retry".format(global_vars.pipelines_url, self._id), headers=headers)
+            "{}/{}/retry".format(global_vars.pipelines_url, self._id),
+            headers=global_vars.headers)
 
     def cancel(self):
         requests.post(
             "{}/{}/cancel".format(global_vars.pipelines_url, self._id),
-            headers=headers)
+            headers=global_vars.headers)
 
 
 def generate_pipeline_status_str(status):
@@ -63,7 +64,8 @@ def generate_pipeline_status_str(status):
 def get_pipelines_by_sha(sha, status=None):
     """Returns a list of `Pipeline`s associated with the given `sha`."""
     status_str = generate_pipeline_status_str(status)
-    r = requests.get(global_vars.pipelines_url + status_str, headers=headers)
+    r = requests.get(
+        global_vars.pipelines_url + status_str, headers=global_vars.headers)
     pipelines = []
     for pipeline in r.json():
         if pipeline["sha"] == sha:
@@ -74,7 +76,8 @@ def get_pipelines_by_sha(sha, status=None):
 def get_pipelines_by_change_id(change_id, repo, status=None):
     """Returns a list of `Pipeline`s associated with the given `change_id`."""
     status_str = generate_pipeline_status_str(status)
-    r = requests.get(global_vars.pipelines_url + status_str, headers=headers)
+    r = requests.get(
+        global_vars.pipelines_url + status_str, headers=global_vars.headers)
     pipelines = []
     for pipeline in r.json():
         try:
