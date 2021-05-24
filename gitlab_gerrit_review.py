@@ -9,6 +9,9 @@ from git import Repo
 import requests
 import time
 
+from utils import Bcolors
+from utils import warn
+
 mr_url = None
 pipeline_url = None
 pipelines_url = None
@@ -19,18 +22,6 @@ change_id_re = r"Change-Id: (.+?)(\s|$)"
 dry_run = False
 username = None
 email = None
-
-
-class Bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
 
 
 class PipelineStatus:
@@ -45,10 +36,6 @@ class PipelineStatus:
     SKIPPED = "skipped"
     MANUAL = "manual"
     SCHEDULED = "scheduled"
-
-
-def warn(msg):
-    print(Bcolors.WARNING + "warning" + Bcolors.ENDC + ": {}".format(msg))
 
 
 def load_config(remote, repo):
@@ -110,15 +97,6 @@ def is_remote_stale(commits, remote_commits):
 
 
 def get_merge_request(remote, branch):
-    """Return a `MergeRequest` given branch name."""
-    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
-    for mr in r.json():
-        if mr["source_branch"] == branch:
-            print(mr)
-            return MergeRequest(remote=remote, json_data=mr)
-    return None
-
-def get_merge_request_commits(branch):
     """Return a `MergeRequest` given branch name."""
     r = requests.get("{}?state=opened".format(mr_url), headers=headers)
     for mr in r.json():
