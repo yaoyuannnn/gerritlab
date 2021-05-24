@@ -11,6 +11,8 @@ repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
 repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
 import gitlab_gerrit_review as review
+import global_vars
+import utils
 
 TEST_PROJECT_URL = "git@gitlab.com:yaoyuannnn/gitlab-gerrit-review-tests.git"
 
@@ -32,7 +34,7 @@ class MergeRequestTest(unittest.TestCase):
                                                   "Yuan Yao").release()
         self._test_repo.config_writer().set_value(
             "user", "email", "yaoyuannnn@gmail.com").release()
-        review.load_config(self._remote.name, self._test_repo)
+        global_vars.load_config(self._remote.name, self._test_repo)
         self._local_branch = self._test_repo.active_branch.name
 
     def tearDown(self):
@@ -51,24 +53,34 @@ class MergeRequestTest(unittest.TestCase):
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         commit = self._test_repo.head.commit
-        source_branch = review.get_remote_branch_name(
-            self._local_branch, review.get_change_id(commit.message))
+        source_branch = utils.get_remote_branch_name(
+            self._local_branch, utils.get_change_id(commit.message))
         mr = review.get_merge_request(self._remote, source_branch)
         self.assertTrue(mr != None)
         mr.delete(delete_source_branch=True)
 
     def test_create_multiple_mrs(self):
-        # Create two MRs.
+        # Create three MRs.
         self._create_commit("new_file0.txt", "Add a new file0.")
         self._create_commit("new_file1.txt", "Add a new file1.")
+        self._create_commit("new_file2.txt", "Add a new file2.")
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
-        for i in range(2):
+        mrs = []
+        for i in reversed(range(3)):
             commit = self._test_repo.commit("HEAD~{}".format(i))
-            source_branch = review.get_remote_branch_name(
-                self._local_branch, review.get_change_id(commit.message))
+            source_branch = utils.get_remote_branch_name(
+                self._local_branch, utils.get_change_id(commit.message))
             mr = review.get_merge_request(self._remote, source_branch)
             self.assertTrue(mr != None)
+            if i == 2:
+                self.assertEqual(
+                    mr.target_branch, global_vars.global_target_branch)
+            else:
+                self.assertEqual(mr.target_branch, mrs[-1].source_branch)
+            mrs.append(mr)
+
+        for mr in mrs:
             mr.delete(delete_source_branch=True)
 
     def test_update_mrs(self):

@@ -1,118 +1,38 @@
 import sys
 import os
-import re
 import argparse
-import configparser
 import collections
 import json
 from git import Repo
 import requests
 import time
 
-from utils import Bcolors
-from utils import warn
-
-mr_url = None
-pipeline_url = None
-pipelines_url = None
-headers = None
-global_target_branch = "master"
-remove_source_branch = False
-change_id_re = r"Change-Id: (.+?)(\s|$)"
-dry_run = False
-username = None
-email = None
-
-
-class PipelineStatus:
-    CREATED = "created"
-    WAITING_FOR_RESOURCE = "waiting_for_resource"
-    PREPARING = "preparing"
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILED = "failed"
-    CANCELED = "canceled"
-    SKIPPED = "skipped"
-    MANUAL = "manual"
-    SCHEDULED = "scheduled"
-
-
-def load_config(remote, repo):
-    global username
-    global email
-    global mr_url
-    global pipeline_url
-    global pipelines_url
-    global headers
-    global global_target_branch
-    global remove_source_branch
-
-    username = repo.config_reader().get_value("user", "name")
-    email = repo.config_reader().get_value("user", "email")
-
-    config = configparser.ConfigParser()
-    root_dir = repo.git.rev_parse("--show-toplevel")
-    config.read(os.path.join(root_dir, ".gitreview"))
-    configs = config[remote]
-    host = configs["host"]
-    project_id = configs["project_id"]
-    private_token = configs["private_token"]
-    # Optional configs.
-    if "target_branch" in configs:
-        global_target_branch = configs["target_branch"]
-    if "remove_source_branch" in configs:
-        remove_source_branch = configs.getboolean("remove_source_branch")
-    mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
-    pipeline_url = "{}/api/v4/projects/{}/pipeline".format(host, project_id)
-    pipelines_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
-    headers = {"PRIVATE-TOKEN": private_token}
-
-
-def get_msg_title_description(msg):
-    title, desc = tuple(msg.split("\n", 1))
-    desc = re.sub(change_id_re, "", desc)
-    return title, desc
-
-
-def get_change_id(msg, silent=False):
-    m = re.search(change_id_re, msg)
-    if m:
-        return m.group(1)
-    elif not silent:
-        raise ValueError("Didn't find the Change-Id in the commit message!")
-    else:
-        return None
-
-
-def get_remote_branch_name(local_branch, change_id):
-    return "{}-{}".format(local_branch, change_id[1:5])
-
-
-def is_remote_stale(commits, remote_commits):
-    """Checks if remote becomes stale due to local changes."""
-    shas = set([c.hexsha for c in commits])
-    remote_shas = set([c.hexsha for c in remote_commits])
-    return shas != remote_shas
+import utils
+from utils import Bcolors, warn
+import global_vars
+import pipeline
 
 
 def get_merge_request(remote, branch):
     """Return a `MergeRequest` given branch name."""
-    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
+    r = requests.get(
+        "{}?state=opened".format(global_vars.mr_url),
+        headers=global_vars.headers)
     for mr in r.json():
         if mr["source_branch"] == branch:
-            print(mr)
             return MergeRequest(remote=remote, json_data=mr)
     return None
 
 
 def get_all_merge_requests(remote, branch):
     """Return all `MergeRequest`s created off of `branch`."""
-    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
+    r = requests.get(
+        "{}?state=opened".format(global_vars.mr_url),
+        headers=global_vars.headers)
     mrs = []
     for json_data in r.json():
         if json_data["source_branch"].startswith(
-                branch) and json_data["author"]["name"] == username:
+                branch) and json_data["author"]["name"] == global_vars.username:
             mrs.append(MergeRequest(remote=remote, json_data=json_data))
     return mrs
 
@@ -141,71 +61,6 @@ def get_merge_request_chain(mrs):
     for root in roots:
         mr_chain.extend(get_merge_request_chain_inner(mrs_dict, root))
     return mr_chain
-
-
-def generate_pipeline_status_str(status):
-    status_str = ""
-    for i, s in enumerate(status):
-        if i == 0:
-            status_str += "?"
-        else:
-            status_str += "&"
-        status_str += "status=" + s
-    return status_str
-
-
-def get_pipelines_by_sha(sha, status=None):
-    """Returns a list of `Pipeline`s associated with the given `sha`."""
-    status_str = generate_pipeline_status_str(status)
-    r = requests.get(pipelines_url + status_str, headers=headers)
-    pipelines = []
-    for pipeline in r.json():
-        if pipeline["sha"] == sha:
-            pipelines.append(Pipeline(json_data=pipeline))
-    return pipelines
-
-
-def get_pipelines_by_change_id(change_id, repo, status=None):
-    """Returns a list of `Pipeline`s associated with the given `change_id`."""
-    status_str = generate_pipeline_status_str(status)
-    r = requests.get(pipelines_url + status_str, headers=headers)
-    pipelines = []
-    for pipeline in r.json():
-        try:
-            remote_change_id = get_change_id(
-                repo.git.log(pipeline["sha"], n=1), silent=True)
-        except:
-            continue
-        if remote_change_id is not None and remote_change_id == change_id:
-            pipelines.append(Pipeline(json_data=pipeline))
-    return pipelines
-
-
-class Pipeline:
-
-    def __init__(self, json_data):
-        for attr in json_data:
-            setattr(self, "_{}".format(attr), json_data[attr])
-
-    @property
-    def sha(self):
-        return self._sha
-
-    @property
-    def status(self):
-        return self._status
-
-    def create(self, ref):
-        requests.post(
-            "{}?ref={}".format(pipeline_url, self._ref), headers=headers)
-
-    def retry(self):
-        requests.post(
-            "{}/{}/retry".format(pipelines_url, self._id), headers=headers)
-
-    def cancel(self):
-        requests.post(
-            "{}/{}/cancel".format(pipelines_url, self._id), headers=headers)
 
 
 class MergeRequest:
@@ -252,9 +107,10 @@ class MergeRequest:
             "target_branch": self._target_branch,
             "title": self._title,
             "description": self._description,
-            "remove_source_branch": remove_source_branch,
+            "remove_source_branch": global_vars.remove_source_branch,
         }
-        r = requests.post(mr_url, headers=headers, data=data)
+        r = requests.post(
+            global_vars.mr_url, headers=global_vars.headers, data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
@@ -279,7 +135,8 @@ class MergeRequest:
             "description": self._description,
         }
         r = requests.put(
-            "{}/{}".format(mr_url, self._iid), headers=headers, data=data)
+            "{}/{}".format(global_vars.mr_url, self._iid),
+            headers=global_vars.headers, data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
@@ -289,9 +146,9 @@ class MergeRequest:
     def submit(self):
         if self._iid is None:
             raise ValueError("Must set iid before submittng an MR!")
-        url = "{}/{}/merge".format(mr_url, self._iid)
+        url = "{}/{}/merge".format(global_vars.mr_url, self._iid)
         while True:
-            r = requests.put(url, headers=headers)
+            r = requests.put(url, headers=global_vars.headers)
             if r.status_code == requests.codes.ok:
                 break
             else:
@@ -300,7 +157,9 @@ class MergeRequest:
     def delete(self, delete_source_branch=False):
         if self._iid is None:
             raise ValueError("Must set iid before deleting an MR!")
-        r = requests.delete("{}/{}".format(mr_url, self._iid), headers=headers)
+        r = requests.delete(
+            "{}/{}".format(global_vars.mr_url, self._iid),
+            headers=global_vars.headers)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         if delete_source_branch:
@@ -318,10 +177,10 @@ def submit_merge_requests(remote, local_branch):
         print("No MRs found for this branch: {}".format(local_branch))
         return
 
-    if global_target_branch not in [mr.target_branch for mr in mrs]:
+    if global_vars.global_target_branch not in [mr.target_branch for mr in mrs]:
         warn(
             "Not a single MR interested in merging into {}?".format(
-                global_target_branch))
+                global_vars.global_target_branch))
         return
 
     mr_chain = get_merge_request_chain(mrs)
@@ -338,25 +197,24 @@ def submit_merge_requests(remote, local_branch):
     if len(mergeables) == 0:
         warn(
             "No MRs can be merged into {} as top of the MR chain is not "
-            "mergeable.".format(global_target_branch))
+            "mergeable.".format(global_vars.global_target_branch))
         return
 
-    if not dry_run:
-        # We must submit MRs from the oldest. And before submitting an MR, we
-        # must change its target_branch to the main branch.
-        for mr in mergeables:
-            mr.update(target_branch=global_target_branch)
-            #FIXME: Poll the merge req status and waiting until
-            # merge_status is no longer "checking".
-            mr.submit()
+    # We must submit MRs from the oldest. And before submitting an MR, we
+    # must change its target_branch to the main branch.
+    for mr in mergeables:
+        mr.update(target_branch=global_vars.global_target_branch)
+        #FIXME: Poll the merge req status and waiting until
+        # merge_status is no longer "checking".
+        mr.submit()
 
-        print()
-        print(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC)
-        print()
-        print("New Merged MRs:")
-        for mr in mergeables:
-            mr.print_info(verbose=True)
-        print("To {}".format(remote.url))
+    print()
+    print(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC)
+    print()
+    print("New Merged MRs:")
+    for mr in mergeables:
+        mr.print_info(verbose=True)
+    print("To {}".format(remote.url))
 
 
 def create_merge_requests(repo, remote, local_branch):
@@ -378,8 +236,9 @@ def create_merge_requests(repo, remote, local_branch):
             remote_commit = list(
                 repo.iter_commits(
                     rev="{}/{}".format(remote.name, remote_branch)))[0]
-            if get_change_id(remote_commit.message) != get_change_id(
-                    commit.message):
+            if utils.get_change_id(
+                    remote_commit.message) != utils.get_change_id(
+                        commit.message):
                 raise Exception(
                     "The local commit has a different Change-Id from the "
                     "one on the same branch in remote!")
@@ -393,8 +252,8 @@ def create_merge_requests(repo, remote, local_branch):
     def cancel_prev_pipelines(commit):
         """Cancels previous pipelinesa associated with the same Change-Id."""
         # Get the running pipelines.
-        change_id = get_change_id(commit.message)
-        for pipeline in get_pipelines_by_change_id(
+        change_id = utils.get_change_id(commit.message)
+        for pipeline in pipeline.get_pipelines_by_change_id(
                 change_id=change_id, repo=repo,
                 status=[PipelineStatus.RUNNING, PipelineStatus.PENDING]):
             # Don't cancel myself.
@@ -409,17 +268,20 @@ def create_merge_requests(repo, remote, local_branch):
     # Get the local commits that are ahead of the remote/target_branch.
     commits = list(
         repo.iter_commits(
-            "{}/{}..{}".format(remote.name, global_target_branch,
-                               local_branch)))
+            "{}/{}..{}".format(
+                remote.name, global_vars.global_target_branch, local_branch)))
     commits.reverse()
     Commit = collections.namedtuple(
         "Commit", ["commit", "source_branch", "target_branch"])
     commits_data = []
     for idx, c in enumerate(commits):
-        source_branch = get_remote_branch_name(
-            local_branch, get_change_id(c.message))
-        target_branch = global_target_branch if idx == 0 else get_remote_branch_name(
-            local_branch, get_change_id(commits[idx - 1].message))
+        source_branch = utils.get_remote_branch_name(
+            local_branch, utils.get_change_id(c.message))
+        if idx == 0:
+            target_branch = global_vars.global_target_branch
+        else:
+            target_branch = utils.get_remote_branch_name(
+                local_branch, utils.get_change_id(commits[idx - 1].message))
         commits_data.append(Commit(c, source_branch, target_branch))
 
     # Before we update the existing the MRs or create new MRs, there are a few
@@ -453,7 +315,7 @@ def create_merge_requests(repo, remote, local_branch):
         for c in commits_data:
             if c.source_branch == mr.source_branch:
                 # Update the target branch of this MR.
-                title, desp = get_msg_title_description(c.commit.message)
+                title, desp = utils.get_msg_title_description(c.commit.message)
                 mr.update(
                     source_branch=c.source_branch,
                     target_branch=c.target_branch, title=title,
@@ -476,7 +338,7 @@ def create_merge_requests(repo, remote, local_branch):
         remote.push(
             refspec="{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch),
             force=True)
-        title, desp = get_msg_title_description(c.commit.message)
+        title, desp = utils.get_msg_title_description(c.commit.message)
         mr = MergeRequest(
             remote=remote, source_branch=c.source_branch,
             target_branch=c.target_branch, title=title, description=desp)
@@ -500,9 +362,6 @@ def main():
     parser.add_argument(
         "--merge", "-m", action="store_true", default=False,
         help="Merge the MRs if they are approved.")
-    parser.add_argument(
-        "--dry-run", "-d", action="store_true", default=False,
-        help="Dry run the command.")
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
@@ -514,11 +373,6 @@ def main():
             raise Exception(
                 "HEAD is detached. Are you in the process of a rebase?")
         local_branch = repo.active_branch.name
-
-    global dry_run
-    dry_run = args.dry_run
-    if dry_run:
-        warn("Dry run mode.")
 
     # Submit the MRs if they become mergeable.
     if args.merge:
