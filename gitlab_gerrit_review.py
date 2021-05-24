@@ -109,23 +109,23 @@ def is_remote_stale(commits, remote_commits):
     return shas != remote_shas
 
 
-def get_merge_request(branch):
+def get_merge_request(remote, branch):
     """Return a `MergeRequest` given branch name."""
     r = requests.get("{}?state=opened".format(mr_url), headers=headers)
     for mr in r.json():
         if mr["source_branch"] == branch:
-            return MergeRequest(json_data=mr)
+            return MergeRequest(remote=remote, json_data=mr)
     return None
 
 
-def get_all_merge_requests(branch):
+def get_all_merge_requests(remote, branch):
     """Return all `MergeRequest`s created off of `branch`."""
     r = requests.get("{}?state=opened".format(mr_url), headers=headers)
     mrs = []
     for json_data in r.json():
         if json_data["source_branch"].startswith(
                 branch) and json_data["author"]["name"] == username:
-            mrs.append(MergeRequest(json_data=json_data))
+            mrs.append(MergeRequest(remote=remote, json_data=json_data))
     return mrs
 
 
@@ -223,8 +223,9 @@ class Pipeline:
 class MergeRequest:
 
     def __init__(
-            self, source_branch=None, target_branch=None, title=None,
+            self, remote, source_branch=None, target_branch=None, title=None,
             description=None, json_data=None):
+        self._remote = remote
         self._source_branch = source_branch
         self._target_branch = target_branch
         self._title = title
@@ -308,12 +309,14 @@ class MergeRequest:
             else:
                 time.sleep(2)
 
-    def delete(self):
+    def delete(self, delete_source_branch=False):
         if self._iid is None:
             raise ValueError("Must set iid before deleting an MR!")
         r = requests.delete("{}/{}".format(mr_url, self._iid), headers=headers)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
+        if delete_source_branch:
+            self._remote.push(refspec=(":{}".format(self._source_branch)))
 
 
 def submit_merge_requests(remote, local_branch):
@@ -322,7 +325,7 @@ def submit_merge_requests(remote, local_branch):
     print("\nSubmitting merge requests:")
 
     # Get MRs created off of the given branch.
-    mrs = get_all_merge_requests(local_branch)
+    mrs = get_all_merge_requests(remote, local_branch)
     if len(mrs) == 0:
         print("No MRs found for this branch: {}".format(local_branch))
         return
@@ -451,7 +454,7 @@ def create_merge_requests(repo, remote, local_branch):
     # The following code updates/creates MRs with the above notes in mind.
 
     # Get existing MRs created off of the given branch.
-    current_mrs = get_all_merge_requests(local_branch)
+    current_mrs = get_all_merge_requests(remote, local_branch)
     current_mr_chain = get_merge_request_chain(current_mrs)
 
     # Update the existing MRs from the end of the MR dependency chain.
@@ -487,8 +490,8 @@ def create_merge_requests(repo, remote, local_branch):
             force=True)
         title, desp = get_msg_title_description(c.commit.message)
         mr = MergeRequest(
-            source_branch=c.source_branch, target_branch=c.target_branch,
-            title=title, description=desp)
+            remote=remote, source_branch=c.source_branch,
+            target_branch=c.target_branch, title=title, description=desp)
         mr.create()
         mr.print_info(verbose=True)
     print()

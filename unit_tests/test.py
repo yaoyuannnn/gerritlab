@@ -38,47 +38,38 @@ class MergeRequestTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self._test_project_dir)
 
-    def test_create_single_mr(self):
+    def _create_commit(self, new_file_name, commit_msg):
         new_file_path = os.path.join(
-            self._test_repo.working_tree_dir, "new_file.txt")
+            self._test_repo.working_tree_dir, new_file_name)
         open(new_file_path, "wb").close()
         self._test_repo.index.add([new_file_path])
-        self._test_repo.index.commit("Add a new file.")
+        self._test_repo.index.commit(commit_msg)
+
+    def test_create_single_mr(self):
         # Create an MR.
+        self._create_commit("new_file.txt", "Add a new file.")
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         commit = self._test_repo.head.commit
         source_branch = review.get_remote_branch_name(
             self._local_branch, review.get_change_id(commit.message))
-        mr = review.get_merge_request(source_branch)
+        mr = review.get_merge_request(self._remote, source_branch)
         self.assertTrue(mr != None)
-        # Delete the MR and its source branch.
-        mr.delete()
-        self._remote.push(refspec=(":{}".format(source_branch)))
+        mr.delete(delete_source_branch=True)
 
     def test_create_multiple_mrs(self):
-        new_file0_path = os.path.join(
-            self._test_repo.working_tree_dir, "new_file0.txt")
-        new_file1_path = os.path.join(
-            self._test_repo.working_tree_dir, "new_file1.txt")
-        open(new_file0_path, "wb").close()
-        open(new_file1_path, "wb").close()
-        self._test_repo.index.add([new_file0_path])
-        self._test_repo.index.commit("Add a new file0.")
-        self._test_repo.index.add([new_file1_path])
-        self._test_repo.index.commit("Add a new file1.")
         # Create two MRs.
+        self._create_commit("new_file0.txt", "Add a new file0.")
+        self._create_commit("new_file1.txt", "Add a new file1.")
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         for i in range(2):
             commit = self._test_repo.commit("HEAD~{}".format(i))
             source_branch = review.get_remote_branch_name(
                 self._local_branch, review.get_change_id(commit.message))
-            mr = review.get_merge_request(source_branch)
+            mr = review.get_merge_request(self._remote, source_branch)
             self.assertTrue(mr != None)
-            # Delete the MR/source branche.
-            mr.delete()
-            self._remote.push(refspec=(":{}".format(source_branch)))
+            mr.delete(delete_source_branch=True)
 
     def test_update_mrs(self):
         pass
