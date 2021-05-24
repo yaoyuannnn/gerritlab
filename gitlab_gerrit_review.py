@@ -114,6 +114,16 @@ def get_merge_request(remote, branch):
     r = requests.get("{}?state=opened".format(mr_url), headers=headers)
     for mr in r.json():
         if mr["source_branch"] == branch:
+            print(mr)
+            return MergeRequest(remote=remote, json_data=mr)
+    return None
+
+def get_merge_request_commits(branch):
+    """Return a `MergeRequest` given branch name."""
+    r = requests.get("{}?state=opened".format(mr_url), headers=headers)
+    for mr in r.json():
+        if mr["source_branch"] == branch:
+            print(mr)
             return MergeRequest(remote=remote, json_data=mr)
     return None
 
@@ -426,13 +436,13 @@ def create_merge_requests(repo, remote, local_branch):
     commits.reverse()
     Commit = collections.namedtuple(
         "Commit", ["commit", "source_branch", "target_branch"])
-    commits_data = set()
+    commits_data = []
     for idx, c in enumerate(commits):
         source_branch = get_remote_branch_name(
             local_branch, get_change_id(c.message))
         target_branch = global_target_branch if idx == 0 else get_remote_branch_name(
             local_branch, get_change_id(commits[idx - 1].message))
-        commits_data.add(Commit(c, source_branch, target_branch))
+        commits_data.append(Commit(c, source_branch, target_branch))
 
     # Before we update the existing the MRs or create new MRs, there are a few
     # important notes:
@@ -460,7 +470,7 @@ def create_merge_requests(repo, remote, local_branch):
     # Update the existing MRs from the end of the MR dependency chain.
     if len(current_mr_chain) > 0:
         print("\nUpdated MRs:")
-    updated_commits = set()
+    updated_commits = []
     for mr in reversed(current_mr_chain):
         for c in commits_data:
             if c.source_branch == mr.source_branch:
@@ -476,11 +486,11 @@ def create_merge_requests(repo, remote, local_branch):
                 remote.push(
                     refspec="{}:refs/heads/{}".format(
                         c.commit.hexsha, c.source_branch), force=True)
-                updated_commits.add(c)
+                updated_commits.append(c)
                 break
 
     # Create new MRs.
-    commits_data -= updated_commits
+    commits_data = [c for c in commits_data if c not in updated_commits]
     if len(commits_data) > 0:
         print("\nNew MRs:")
     for c in commits_data:
