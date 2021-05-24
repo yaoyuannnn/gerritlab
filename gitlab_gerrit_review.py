@@ -165,6 +165,15 @@ class MergeRequest:
         if delete_source_branch:
             self._remote.push(refspec=(":{}".format(self._source_branch)))
 
+    def get_commits(self):
+        """Returns a list of commits in this merge request."""
+        r = requests.get(
+            "{}/{}/commits".format(global_vars.mr_url, self._iid),
+            headers=global_vars.headers)
+        if r.status_code != requests.codes.ok:
+            r.raise_for_status()
+        return r.json()
+
 
 def submit_merge_requests(remote, local_branch):
     """Submits merge requests."""
