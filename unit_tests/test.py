@@ -47,16 +47,24 @@ class MergeRequestTest(unittest.TestCase):
         self._test_repo.index.add([new_file_path])
         self._test_repo.index.commit(commit_msg)
 
+    def _validate_mr(self, commit, target_branch):
+        source_branch = utils.get_remote_branch_name(
+            self._local_branch, utils.get_change_id(commit.message))
+        mr = review.get_merge_request(self._remote, source_branch)
+        self.assertTrue(mr != None)
+        self.assertEqual(mr.target_branch, target_branch)
+        mr_commits = mr.get_commits()
+        self.assertEqual(len(mr_commits), 1)
+        self.assertEqual(mr_commits[0]["id"], commit.hexsha)
+        return mr
+
     def test_create_single_mr(self):
         # Create an MR.
         self._create_commit("new_file.txt", "Add a new file.")
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         commit = self._test_repo.head.commit
-        source_branch = utils.get_remote_branch_name(
-            self._local_branch, utils.get_change_id(commit.message))
-        mr = review.get_merge_request(self._remote, source_branch)
-        self.assertTrue(mr != None)
+        mr = self._validate_mr(commit, global_vars.global_target_branch)
         mr.delete(delete_source_branch=True)
 
     def test_create_multiple_mrs(self):
@@ -67,19 +75,15 @@ class MergeRequestTest(unittest.TestCase):
         review.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         mrs = []
+        # Validate the MRs.
         for i in reversed(range(3)):
             commit = self._test_repo.commit("HEAD~{}".format(i))
-            source_branch = utils.get_remote_branch_name(
-                self._local_branch, utils.get_change_id(commit.message))
-            mr = review.get_merge_request(self._remote, source_branch)
-            self.assertTrue(mr != None)
             if i == 2:
-                self.assertEqual(
-                    mr.target_branch, global_vars.global_target_branch)
+                mr = self._validate_mr(commit, global_vars.global_target_branch)
             else:
-                self.assertEqual(mr.target_branch, mrs[-1].source_branch)
+                mr = self._validate_mr(commit, mrs[-1].source_branch)
             mrs.append(mr)
-
+        # Delete the MRs.
         for mr in mrs:
             mr.delete(delete_source_branch=True)
 
