@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-import gitlab_gerrit_review
+repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
+repo_path = repo.git.rev_parse("--show-toplevel")
+sys.path.append(repo_path)
+from gitlab_gerrit_review import main
 
 if __name__ == "__main__":
-    gitlab_gerrit_review.main()
+    main.main()

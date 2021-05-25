@@ -10,10 +10,8 @@ import tempfile
 repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
 repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
-import gitlab_gerrit_review as review
-import merge_request
-import global_vars
-import utils
+from gitlab_gerrit_review import main as review
+from gitlab_gerrit_review import merge_request, global_vars, utils
 
 TEST_PROJECT_URL = "git@gitlab.com:yaoyuannnn/gitlab-gerrit-review-tests.git"
 

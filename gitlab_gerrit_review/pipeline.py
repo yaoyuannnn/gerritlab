@@ -2,8 +2,7 @@
 
 import requests
 
-import utils
-import global_vars
+from gitlab_gerrit_review import utils, global_vars
 
 
 class PipelineStatus:
