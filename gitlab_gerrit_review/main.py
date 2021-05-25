@@ -151,12 +151,16 @@ def create_merge_requests(repo, remote, local_branch):
     current_mr_chain = merge_request.get_merge_request_chain(current_mrs)
 
     # Update the existing MRs from the end of the MR dependency chain.
-    if len(current_mr_chain) > 0:
-        print("\nUpdated MRs:")
     updated_commits = []
+    updated_mrs = []
     for mr in reversed(current_mr_chain):
         for c in commits_data:
             if c.source_branch == mr.source_branch:
+                updated_target_branch_exists = "{}/{}".format(
+                    remote.name,
+                    c.target_branch) in [ref.name for ref in repo.references]
+                if not updated_target_branch_exists:
+                    continue
                 # Update the target branch of this MR.
                 title, desp = utils.get_msg_title_description(c.commit.message)
                 mr.update(
@@ -170,26 +174,45 @@ def create_merge_requests(repo, remote, local_branch):
                     refspec="{}:refs/heads/{}".format(
                         c.commit.hexsha, c.source_branch), force=True)
                 updated_commits.append(c)
+                updated_mrs.append(mr)
                 break
 
     # Create new MRs.
     commits_data = [c for c in commits_data if c not in updated_commits]
-    if len(commits_data) > 0:
-        print("\nNew MRs:")
+    new_mrs = []
     for c in commits_data:
+        title, desp = utils.get_msg_title_description(c.commit.message)
         # Push the commit to remote by creating a new branch.
         remote.push(
             refspec="{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch),
             force=True)
-        title, desp = utils.get_msg_title_description(c.commit.message)
-        mr = merge_request.MergeRequest(
-            remote=remote, source_branch=c.source_branch,
-            target_branch=c.target_branch, title=title, description=desp)
-        mr.create()
-        mr.print_info(verbose=True)
-    print()
+        mr = merge_request.get_merge_request(remote, c.source_branch)
+        if mr is not None:
+            # Update the MR if it already exits.
+            mr.update(
+                source_branch=c.source_branch,
+                target_branch=c.target_branch, title=title,
+                description=desp)
+            updated_mrs.append(mr)
+        else:
+            # Create new MRs.
+            mr = merge_request.MergeRequest(
+                remote=remote, source_branch=c.source_branch,
+                target_branch=c.target_branch, title=title, description=desp)
+            mr.create()
+            new_mrs.append(mr)
 
-    print("{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
+    print("\n{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
+    if len(updated_mrs) > 0:
+        print("Updated MRs:")
+        for mr in updated_mrs:
+            mr.print_info(verbose=True)
+        print()
+    if len(new_mrs) > 0:
+        print("New MRs:")
+        for mr in new_mrs:
+            mr.print_info(verbose=True)
+        print()
     print("To {}".format(remote.url))
 
 
