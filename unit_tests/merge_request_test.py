@@ -167,6 +167,39 @@ class MergeRequestTest(unittest.TestCase):
         for mr in mrs:
             mr.delete(delete_source_branch=True)
 
+    def test_insert_new_mr(self):
+        # Create three MRs.
+        commit0 = self._create_commit("new_file0.txt", "Add a new file0.")
+        commit1 = self._create_commit("new_file1.txt", "Add a new file1.")
+        review.create_merge_requests(
+            self._test_repo, self._remote, self._local_branch)
+        # Insert a new MR after the first MR.
+        self._test_repo.head.reset("HEAD~1", index=True, working_tree=True)
+        inserted_commit = self._create_commit(
+            "inserted.txt", "Add a inserted MR.")
+        # Rebase commit1.
+        new_file_path = os.path.join(
+            self._test_repo.working_tree_dir, "new_file1.txt")
+        open(new_file_path, "wb").close()
+        self._test_repo.index.add([new_file_path])
+        # We need to restore the Change ID in the new commit.
+        self._test_repo.git.commit(
+            message=commit1.message, no_verify=True)
+        rebased_commit1 = self._test_repo.head.commit
+        review.create_merge_requests(
+            self._test_repo, self._remote, self._local_branch)
+        # Validate the MRs.
+        mrs = []
+        for idx, c in enumerate([commit0, inserted_commit, rebased_commit1]):
+            if idx == 0:
+                mr = self._validate_mr(c, global_vars.global_target_branch)
+            else:
+                mr = self._validate_mr(c, mrs[-1].source_branch)
+            mrs.append(mr)
+        # Delete the MRs.
+        for mr in mrs:
+            mr.delete(delete_source_branch=True)
+
 
 if __name__ == "__main__":
     unittest.main()
