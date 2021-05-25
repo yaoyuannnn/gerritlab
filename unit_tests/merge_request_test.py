@@ -143,6 +143,30 @@ class MergeRequestTest(unittest.TestCase):
         for mr in mrs:
             mr.delete(delete_source_branch=True)
 
+    def test_update_some_mrs(self):
+        # Create three MRs.
+        commits = []
+        commits.append(self._create_commit("new_file0.txt", "Add a new file0."))
+        commits.append(self._create_commit("new_file1.txt", "Add a new file1."))
+        commits.append(self._create_commit("new_file2.txt", "Add a new file2."))
+        review.create_merge_requests(
+            self._test_repo, self._remote, self._local_branch)
+        # Update the MRs.
+        amended_commits = self._amend_commits(commits[-2:])
+        review.create_merge_requests(
+            self._test_repo, self._remote, self._local_branch)
+        # Validate the MRs.
+        mrs = []
+        for idx, c in enumerate([commits[0]] + amended_commits):
+            if idx == 0:
+                mr = self._validate_mr(c, global_vars.global_target_branch)
+            else:
+                mr = self._validate_mr(c, mrs[-1].source_branch)
+            mrs.append(mr)
+        # Delete the MRs.
+        for mr in mrs:
+            mr.delete(delete_source_branch=True)
+
 
 if __name__ == "__main__":
     unittest.main()
