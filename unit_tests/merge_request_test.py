@@ -10,8 +10,7 @@ import tempfile
 repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
 repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
-from gitlab_gerrit_review import main as review
-from gitlab_gerrit_review import merge_request, global_vars, utils
+from gitlab_gerrit_review import main, merge_request, global_vars, utils
 
 TEST_PROJECT_URL = "git@gitlab.com:yaoyuannnn/gitlab-gerrit-review-tests.git"
 
@@ -79,7 +78,7 @@ class MergeRequestTest(unittest.TestCase):
     def test_create_single_mr(self):
         # Create an MR.
         commit = self._create_commit("new_file.txt", "Add a new file.")
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         mr = self._validate_mr(commit, global_vars.global_target_branch)
         mr.delete(delete_source_branch=True)
@@ -90,7 +89,7 @@ class MergeRequestTest(unittest.TestCase):
         commits.append(self._create_commit("new_file0.txt", "Add a new file0."))
         commits.append(self._create_commit("new_file1.txt", "Add a new file1."))
         commits.append(self._create_commit("new_file2.txt", "Add a new file2."))
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         mrs = []
         # Validate the MRs.
@@ -107,11 +106,11 @@ class MergeRequestTest(unittest.TestCase):
     def test_update_single_mr(self):
         # Create an MR.
         commit = self._create_commit("new_file.txt", "Add a new file.")
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Update the MR.
         amended_commit = self._amend_commits([commit])[0]
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Validate the updated MR.
         mr = self._validate_mr(amended_commit, global_vars.global_target_branch)
@@ -123,11 +122,11 @@ class MergeRequestTest(unittest.TestCase):
         commits.append(self._create_commit("new_file0.txt", "Add a new file0."))
         commits.append(self._create_commit("new_file1.txt", "Add a new file1."))
         commits.append(self._create_commit("new_file2.txt", "Add a new file2."))
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Update the MRs.
         amended_commits = self._amend_commits(commits)
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Validate the updated MRs.
         mrs = []
@@ -147,11 +146,11 @@ class MergeRequestTest(unittest.TestCase):
         commits.append(self._create_commit("new_file0.txt", "Add a new file0."))
         commits.append(self._create_commit("new_file1.txt", "Add a new file1."))
         commits.append(self._create_commit("new_file2.txt", "Add a new file2."))
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Update the MRs.
         amended_commits = self._amend_commits(commits[-2:])
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Validate the MRs.
         mrs = []
@@ -169,7 +168,7 @@ class MergeRequestTest(unittest.TestCase):
         # Create three MRs.
         commit0 = self._create_commit("new_file0.txt", "Add a new file0.")
         commit1 = self._create_commit("new_file1.txt", "Add a new file1.")
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Insert a new MR after the first MR.
         self._test_repo.head.reset("HEAD~1", index=True, working_tree=True)
@@ -181,10 +180,9 @@ class MergeRequestTest(unittest.TestCase):
         open(new_file_path, "wb").close()
         self._test_repo.index.add([new_file_path])
         # We need to restore the Change ID in the new commit.
-        self._test_repo.git.commit(
-            message=commit1.message, no_verify=True)
+        self._test_repo.git.commit(message=commit1.message, no_verify=True)
         rebased_commit1 = self._test_repo.head.commit
-        review.create_merge_requests(
+        main.create_merge_requests(
             self._test_repo, self._remote, self._local_branch)
         # Validate the MRs.
         mrs = []
