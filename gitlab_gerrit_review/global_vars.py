@@ -32,7 +32,10 @@ def load_config(remote, repo):
     configs = config[remote]
     host = configs["host"]
     project_id = configs["project_id"]
-    private_token = configs["private_token"]
+    if "GITLAB_PRIVATE_TOKEN" in os.environ:
+        private_token = os.environ["GITLAB_PRIVATE_TOKEN"]
+    else:
+        private_token = configs["private_token"]
     # Optional configs.
     if "target_branch" in configs:
         global_target_branch = configs["target_branch"]
