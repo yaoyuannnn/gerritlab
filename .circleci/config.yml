@@ -39,6 +39,11 @@ jobs:
           fingerprints:
             - 6b:31:14:0e:9b:c6:5e:0c:8e:1e:88:7b:06:e2:4e:ee
       - run:
+          name: Checkout dependencies
+          command: |
+            ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
+            git submodule update --init --recursive
+      - run:
           name: Run tests
           # This assumes pytest is installed via the install-package step above
           command: pytest
