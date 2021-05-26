@@ -12,31 +12,36 @@ repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
 from gitlab_gerrit_review import main, merge_request, global_vars, utils
 
-TEST_PROJECT_URL = "git@gitlab.com:yaoyuannnn/gitlab-gerrit-review-tests.git"
-
+GITLAB_TEST_PROJECT_PATH = "unit_tests/gitlab_gerrit_review_tests"
+REMOTE_NAME = "origin"
+USER = "Yuan Yao"
+EMAIL = "yaoyuannnn@gmail.com"
 
 class MergeRequestTest(unittest.TestCase):
 
     def setUp(self):
-        current_dir = os.path.dirname(os.path.realpath(__file__))
-        self._test_project_dir = tempfile.mkdtemp()
-        Repo.clone_from(TEST_PROJECT_URL, self._test_project_dir)
+        self._test_project_dir = os.path.join(
+            repo_path, GITLAB_TEST_PROJECT_PATH)
         self._test_repo = Repo(self._test_project_dir)
-        self._remote = self._test_repo.remote(name="origin")
-        shutil.copy(
-            os.path.join(current_dir, ".gitreview"), self._test_project_dir)
+        self._remote = self._test_repo.remote(name=REMOTE_NAME)
+        # Install the post-commit hook for the GitLab test repo.
         shutil.copy(
             os.path.join(repo_path, "commit-msg"),
-            os.path.join(self._test_project_dir, ".git/hooks/commit-msg"))
+            os.path.join(
+                repo_path, ".git/modules/{}/hooks/commit-msg".format(
+                    GITLAB_TEST_PROJECT_PATH)))
         self._test_repo.config_writer().set_value("user", "name",
-                                                  "Yuan Yao").release()
-        self._test_repo.config_writer().set_value(
-            "user", "email", "yaoyuannnn@gmail.com").release()
+                                                  USER).release()
+        self._test_repo.config_writer().set_value("user", "email",
+                                                  EMAIL).release()
         global_vars.load_config(self._remote.name, self._test_repo)
         self._local_branch = self._test_repo.active_branch.name
 
     def tearDown(self):
-        shutil.rmtree(self._test_project_dir)
+        self._remote.fetch(prune=True)
+        self._test_repo.git.reset(
+            "{}/{}".format(REMOTE_NAME, global_vars.global_target_branch),
+            hard=True)
 
     def _create_commit(self, new_file_name, commit_msg):
         new_file_path = os.path.join(
