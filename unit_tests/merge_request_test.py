@@ -14,6 +14,7 @@ from gitlab_gerrit_review import main, merge_request, global_vars, utils
 
 GITLAB_TEST_PROJECT_PATH = "unit_tests/gitlab_gerrit_review_tests"
 REMOTE_NAME = "origin"
+LOCAL_BRANCH = "master"
 USER = "Yuan Yao"
 EMAIL = "yaoyuannnn@gmail.com"
 
@@ -35,7 +36,8 @@ class MergeRequestTest(unittest.TestCase):
         self._test_repo.config_writer().set_value("user", "email",
                                                   EMAIL).release()
         global_vars.load_config(self._remote.name, self._test_repo)
-        self._local_branch = self._test_repo.active_branch.name
+        self._local_branch = LOCAL_BRANCH
+        self._test_repo.git.checkout(self._local_branch)
 
     def tearDown(self):
         self._remote.fetch(prune=True)
