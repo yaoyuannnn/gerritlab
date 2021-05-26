@@ -1,4 +1,7 @@
-# Gerrit Style Code Review for GitLab Projects.
+Gerrit Style Code Review for GitLab Projects.
+=============================================
+
+[![yaoyuannnn](https://circleci.com/gh/yaoyuannnn/gitlab_gerrit_review.svg?style=shield)](https://circleci.com/gh/yaoyuannnn/gitlab_gerrit_review)
 
 The branch-based approach that GitLab merge request uses can slow things down
 when you really want to create dependent MRs so they can be reviewed in
