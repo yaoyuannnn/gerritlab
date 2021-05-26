@@ -6,6 +6,7 @@ import unittest
 from git import Repo
 import shutil
 import tempfile
+import time
 
 repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
 repo_path = repo.git.rev_parse("--show-toplevel")
@@ -72,6 +73,9 @@ class MergeRequestTest(unittest.TestCase):
         return amended_commits
 
     def _validate_mr(self, commit, target_branch):
+        # GitLab seems to need a little bit of time before the commits of the
+        # MRs get updated, after new commits are pushed to the branches.
+        time.sleep(1)
         source_branch = utils.get_remote_branch_name(
             self._local_branch, utils.get_change_id(commit.message))
         mr = merge_request.get_merge_request(self._remote, source_branch)
