@@ -167,7 +167,6 @@ def create_merge_requests(repo, remote, local_branch):
                     source_branch=c.source_branch,
                     target_branch=c.target_branch, title=title,
                     description=desp)
-                mr.print_info(verbose=True)
                 # Push commits to this branch (i.e. source branch of the MR).
                 cancel_prev_pipelines(c.commit)
                 remote.push(
