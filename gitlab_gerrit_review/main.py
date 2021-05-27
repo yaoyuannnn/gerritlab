@@ -231,7 +231,7 @@ def main():
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
-    load_config(args.remote, repo)
+    global_vars.load_config(args.remote, repo)
     remote = repo.remote(name=args.remote)
     local_branch = args.local_branch
     if args.local_branch is None:
