@@ -98,7 +98,7 @@ def create_merge_requests(repo, remote, local_branch):
         change_id = utils.get_change_id(commit.message)
         for p in pipeline.get_pipelines_by_change_id(
                 change_id=change_id, repo=repo,
-                status=[PipelineStatus.RUNNING, PipelineStatus.PENDING]):
+                status=[PipelineStatus.RUNNING]):
             # Don't cancel myself.
             if p.sha == commit.hexsha:
                 continue
