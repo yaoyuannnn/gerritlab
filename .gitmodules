@@ -1,0 +1,3 @@
+[submodule "unit_tests/gerritlab_tests"]
+	path = unit_tests/gerritlab_tests
+	url = git@gitlab.com:yaoyuannnn/gitlab-gerrit-review-tests.git
