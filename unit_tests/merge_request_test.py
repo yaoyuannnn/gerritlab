@@ -13,7 +13,7 @@ repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
 from gitlab_gerrit_review import main, merge_request, global_vars, utils
 
-GITLAB_TEST_PROJECT_PATH = "unit_tests/gitlab_gerrit_review_tests"
+GITLAB_TEST_PROJECT_PATH = "unit_tests/gerritlab_tests"
 REMOTE_NAME = "origin"
 LOCAL_BRANCH = "master"
 USER = "Yuan Yao"

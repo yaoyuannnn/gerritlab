@@ -200,6 +200,7 @@ def create_merge_requests(repo, remote, local_branch):
             new_mrs.append(mr)
 
     if len(updated_mrs) == 0 and len(new_mrs) == 0:
+        print()
         warn("No updated/new MRs.\n")
     else:
         print("\n{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))

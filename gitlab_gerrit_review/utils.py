@@ -18,7 +18,7 @@ class Bcolors:
 
 
 def warn(msg):
-    print(Bcolors.WARNING + "warning" + Bcolors.ENDC + ": {}".format(msg))
+    print(Bcolors.WARNING + "WARNING" + Bcolors.ENDC + ": {}".format(msg))
 
 
 def get_msg_title_description(msg):
