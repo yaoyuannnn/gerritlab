@@ -75,21 +75,6 @@ def create_merge_requests(repo, remote, local_branch):
                         remote.name, remote_branch, commit.hexsha)))
             if not any(diff):
                 return True
-
-            remote_commit = list(
-                repo.iter_commits(
-                    rev="{}/{}".format(remote.name, remote_branch)))[0]
-            if utils.get_change_id(
-                    remote_commit.message) != utils.get_change_id(
-                        commit.message):
-                raise Exception(
-                    "The local commit has a different Change-Id from the "
-                    "one on the same branch in remote!")
-            if not any(commit.diff(remote_commit)):
-                # The commit's code doesn't have any diff against the remote
-                # commit, meaning that other stuff such as the commit message
-                # has been modified.
-                return True
         return False
 
     def cancel_prev_pipelines(commit):
@@ -156,10 +141,15 @@ def create_merge_requests(repo, remote, local_branch):
     for mr in reversed(current_mr_chain):
         for c in commits_data:
             if c.source_branch == mr.source_branch:
+                # Delay the update if the updated target branch doesn't exist,
+                # meaning a new MR will be created off of that target branch.
                 updated_target_branch_exists = "{}/{}".format(
                     remote.name,
                     c.target_branch) in [ref.name for ref in repo.references]
                 if not updated_target_branch_exists:
+                    continue
+                # Do nothing if the commit doesn't contain any new changes.
+                if can_skip_ci(c.commit, c.source_branch):
                     continue
                 # Update the target branch of this MR.
                 title, desp = utils.get_msg_title_description(c.commit.message)
@@ -167,8 +157,8 @@ def create_merge_requests(repo, remote, local_branch):
                     source_branch=c.source_branch,
                     target_branch=c.target_branch, title=title,
                     description=desp)
-                # Push commits to this branch (i.e. source branch of the MR).
                 cancel_prev_pipelines(c.commit)
+                # Update the remote branch.
                 remote.push(
                     refspec="{}:refs/heads/{}".format(
                         c.commit.hexsha, c.source_branch), force=True)
@@ -181,12 +171,16 @@ def create_merge_requests(repo, remote, local_branch):
     new_mrs = []
     for c in commits_data:
         title, desp = utils.get_msg_title_description(c.commit.message)
-        # Push the commit to remote by creating a new branch.
-        remote.push(
-            refspec="{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch),
-            force=True)
         mr = merge_request.get_merge_request(remote, c.source_branch)
         if mr is not None:
+            # Do nothing if the commit doesn't contain any new changes.
+            if can_skip_ci(c.commit, c.source_branch):
+                continue
+            cancel_prev_pipelines(c.commit)
+            # Update the remote branch.
+            remote.push(
+                refspec="{}:refs/heads/{}".format(
+                    c.commit.hexsha, c.source_branch), force=True)
             # Update the MR if it already exits.
             mr.update(
                 source_branch=c.source_branch,
@@ -194,6 +188,10 @@ def create_merge_requests(repo, remote, local_branch):
                 description=desp)
             updated_mrs.append(mr)
         else:
+            # Push the commit to remote by creating a new branch.
+            remote.push(
+                refspec="{}:refs/heads/{}".format(
+                    c.commit.hexsha, c.source_branch), force=True)
             # Create new MRs.
             mr = merge_request.MergeRequest(
                 remote=remote, source_branch=c.source_branch,
@@ -201,7 +199,10 @@ def create_merge_requests(repo, remote, local_branch):
             mr.create()
             new_mrs.append(mr)
 
-    print("\n{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
+    if len(updated_mrs) == 0 and len(new_mrs) == 0:
+        warn("No updated/new MRs.\n")
+    else:
+        print("\n{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
     if len(updated_mrs) > 0:
         print("Updated MRs:")
         for mr in updated_mrs:
