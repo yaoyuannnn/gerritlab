@@ -11,7 +11,7 @@ import time
 repo = Repo(os.path.realpath(__file__), search_parent_directories=True)
 repo_path = repo.git.rev_parse("--show-toplevel")
 sys.path.append(repo_path)
-from gitlab_gerrit_review import main, merge_request, global_vars, utils
+from gerritlab import main, merge_request, global_vars, utils
 
 GITLAB_TEST_PROJECT_PATH = "unit_tests/gerritlab_tests"
 REMOTE_NAME = "origin"

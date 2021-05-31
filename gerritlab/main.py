@@ -4,9 +4,9 @@ import argparse
 import collections
 from git import Repo
 
-from gitlab_gerrit_review import utils, global_vars, merge_request, pipeline
-from gitlab_gerrit_review.utils import Bcolors, warn
-from gitlab_gerrit_review.pipeline import PipelineStatus
+from gerritlab import utils, global_vars, merge_request, pipeline
+from gerritlab.utils import Bcolors, warn
+from gerritlab.pipeline import PipelineStatus
 
 
 def submit_merge_requests(remote, local_branch):
