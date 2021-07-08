@@ -98,7 +98,6 @@ def create_merge_requests(repo, remote, local_branch):
         repo.iter_commits(
             "{}/{}..{}".format(
                 remote.name, global_vars.global_target_branch, local_branch)))
-    commits.reverse()
     if len(commits) == 0:
         warn("No local commits ahead of remote target branch.")
         sys.exit(0)
@@ -106,6 +105,7 @@ def create_merge_requests(repo, remote, local_branch):
     for c in commits:
         title, _ = utils.get_msg_title_description(c.message)
         print("* {} {}".format(c.hexsha[:8], title))
+    commits.reverse()
     Commit = collections.namedtuple(
         "Commit", ["commit", "source_branch", "target_branch"])
     commits_data = []
