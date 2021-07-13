@@ -1,6 +1,6 @@
 """This file includes easy APIs to handle GitLab merge requests."""
 
-import requests
+import requests, time
 
 from gerritlab import utils, global_vars
 
