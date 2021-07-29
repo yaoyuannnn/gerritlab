@@ -11,6 +11,7 @@ global_target_branch = "master"
 remove_source_branch = False
 username = None
 email = None
+ci_mode = False
 
 
 def load_config(remote, repo):

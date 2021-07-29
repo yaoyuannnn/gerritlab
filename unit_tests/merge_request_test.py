@@ -39,6 +39,7 @@ class MergeRequestTest(unittest.TestCase):
         global_vars.load_config(self._remote.name, self._test_repo)
         self._local_branch = LOCAL_BRANCH
         self._test_repo.git.checkout(self._local_branch)
+        global_vars.ci_mode = True
 
     def tearDown(self):
         self._remote.fetch(prune=True)
