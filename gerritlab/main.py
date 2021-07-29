@@ -105,6 +105,12 @@ def create_merge_requests(repo, remote, local_branch):
     for c in commits:
         title, _ = utils.get_msg_title_description(c.message)
         print("* {} {}".format(c.hexsha[:8], title))
+    do_review_prompt = "Do you want these commits to be reviewed? (y/n) "
+    do_review = input("\n{}".format(do_review_prompt))
+    while do_review not in ['', "y", "n"]:
+        do_review = input("Unkown input. {}".format(do_review_prompt))
+    if do_review == "n":
+        return
     commits.reverse()
     Commit = collections.namedtuple(
         "Commit", ["commit", "source_branch", "target_branch"])
