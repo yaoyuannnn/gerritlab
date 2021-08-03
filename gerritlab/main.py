@@ -101,7 +101,7 @@ def create_merge_requests(repo, remote, local_branch):
     if len(commits) == 0:
         warn("No local commits ahead of remote target branch.")
         sys.exit(0)
-    print("Commits to be reviewed:")
+    print(Bcolors.OKCYAN + "Commits to be reviewed:" + Bcolors.ENDC)
     for c in commits:
         title, _ = utils.get_msg_title_description(c.message)
         print("* {} {}".format(c.hexsha[:8], title))
