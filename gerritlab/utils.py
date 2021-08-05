@@ -17,6 +17,31 @@ class Bcolors:
     UNDERLINE = '\033[4m'
 
 
+def msg_with_color(msg, color):
+    """Wrap `msg` with the given `color`.
+
+    Args:
+        color: One `Bcolors`.
+        msg: The message to print.
+
+    Returns:
+        A string representing `msg` with `color` applied.
+    """
+    if color not in Bcolors.__dict__.values():
+        raise AttributeError("Must specify a valid color!")
+    return "{}{}{}".format(color, msg, Bcolors.ENDC)
+
+
+def print_with_color(msg, color):
+    """Prints `msg` with the given `color`.
+
+    Args:
+        color: One `Bcolors`.
+        msg: The message to print.
+    """
+    print(msg_with_color(msg, color))
+
+
 def warn(msg):
     print(Bcolors.WARNING + "WARNING" + Bcolors.ENDC + ": {}".format(msg))
 

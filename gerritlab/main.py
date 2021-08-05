@@ -5,7 +5,7 @@ import collections
 from git import Repo
 
 from gerritlab import utils, global_vars, merge_request, pipeline
-from gerritlab.utils import Bcolors, warn
+from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
 from gerritlab.pipeline import PipelineStatus
 
 
@@ -51,9 +51,7 @@ def submit_merge_requests(remote, local_branch):
         # merge_status is no longer "checking".
         mr.submit()
 
-    print()
-    print(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC)
-    print()
+    print_with_color("\nSUCCESS\n", Bcolors.OKGREEN)
     print("New Merged MRs:")
     for mr in mergeables:
         mr.print_info(verbose=True)
@@ -101,12 +99,13 @@ def create_merge_requests(repo, remote, local_branch):
     if len(commits) == 0:
         warn("No local commits ahead of remote target branch.")
         sys.exit(0)
-    print(Bcolors.OKCYAN + "Commits to be reviewed:" + Bcolors.ENDC)
+    print_with_color("Commits to be reviewed:", Bcolors.OKCYAN)
     for c in commits:
         title, _ = utils.get_msg_title_description(c.message)
         print("* {} {}".format(c.hexsha[:8], title))
     if not global_vars.ci_mode:
-        do_review_prompt = "Do you want these commits to be reviewed? (y/n) "
+        do_review_prompt = (
+            "Proceed? ({}/n) ".format(msg_with_color("[y]", Bcolors.OKCYAN)))
         do_review = input("\n{}".format(do_review_prompt))
         while do_review not in ['', "y", "n"]:
             do_review = input("Unkown input. {}".format(do_review_prompt))
@@ -217,7 +216,7 @@ def create_merge_requests(repo, remote, local_branch):
         print()
         warn("No updated/new MRs.\n")
     else:
-        print("\n{}\n".format(Bcolors.OKGREEN + "SUCCESS" + Bcolors.ENDC))
+        print_with_color("\nSUCCESS\n", Bcolors.OKGREEN)
     if len(updated_mrs) > 0:
         print("Updated MRs:")
         for mr in updated_mrs:
