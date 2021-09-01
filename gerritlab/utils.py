@@ -49,6 +49,8 @@ def warn(msg):
 def get_msg_title_description(msg):
     title, desc = tuple(msg.split("\n", 1))
     desc = re.sub(change_id_re, "", desc)
+    # Add a newline to work with the odd newline behavior in GitLab.
+    desc = desc.replace("\n", "  \n")
     return title, desc
 
 
