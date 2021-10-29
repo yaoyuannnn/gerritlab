@@ -116,28 +116,39 @@ class MergeRequest:
             r.raise_for_status()
         return r.json()
 
+def _get_open_merge_requests():
+    """Gets all open merge requests in the GitLab repo."""
+    page = 1
+    per_page = 50
+    results = []
+    while True:
+        next_page = requests.get("{}?state=opened&page={}&per_page={}".format(
+            global_vars.mr_url, page, per_page),
+                         headers=global_vars.headers)
+        if not next_page.json():
+            break
+        results.append(next_page)
+        page += 1
+    return results
+
 
 def get_merge_request(remote, branch):
     """Return a `MergeRequest` given branch name."""
-    r = requests.get(
-        "{}?state=opened".format(global_vars.mr_url),
-        headers=global_vars.headers)
-    for mr in r.json():
-        if mr["source_branch"] == branch:
-            return MergeRequest(remote=remote, json_data=mr)
+    for r in _get_open_merge_requests():
+        for mr in r.json():
+            if mr["source_branch"] == branch:
+                return MergeRequest(remote=remote, json_data=mr)
     return None
 
 
 def get_all_merge_requests(remote, branch):
     """Return all `MergeRequest`s created off of `branch`."""
-    r = requests.get(
-        "{}?state=opened".format(global_vars.mr_url),
-        headers=global_vars.headers)
     mrs = []
-    for json_data in r.json():
-        if json_data["source_branch"].startswith(
-                branch) and json_data["author"]["name"] == global_vars.username:
-            mrs.append(MergeRequest(remote=remote, json_data=json_data))
+    for r in _get_open_merge_requests():
+        for json_data in r.json():
+            if json_data["source_branch"].startswith(
+                    branch) and json_data["author"]["name"] == global_vars.username:
+                mrs.append(MergeRequest(remote=remote, json_data=json_data))
     return mrs
 
 
