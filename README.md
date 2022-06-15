@@ -54,6 +54,15 @@ target_branch=master
 remove_source_branch=True
 ```
 
+
+The `private_token` can alternatively also be stored in your Git config:
+
+```console
+$ git config --global gerritlab.private-token "[your-private-token]"
+# OR
+$ git config --local gerritlab.private-token "[your-private-token]"
+```
+
 ## Create/Update MRs.
 
 To create/update MRs, simply do:
