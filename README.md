@@ -101,7 +101,7 @@ account the MR dependency chain.
 
 ```console
 $ git review -m
-Submitting merge requests:
+Merging merge requests:
 * https://gitlab.example.com/myproject/-/merge_requests/110 tests: Add commit a.
     [mergeable]: True
 * https://gitlab.example.com/myproject/-/merge_requests/111 tests: Add commit b.
