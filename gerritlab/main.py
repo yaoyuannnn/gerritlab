@@ -9,10 +9,10 @@ from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
 from gerritlab.pipeline import PipelineStatus
 
 
-def submit_merge_requests(remote, local_branch):
-    """Submits merge requests."""
+def merge_merge_requests(remote, local_branch):
+    """Merges merge requests."""
 
-    print("\nSubmitting merge requests:")
+    print("\nMerging merge requests:")
 
     # Get MRs created off of the given branch.
     mrs = merge_request.get_all_merge_requests(remote, local_branch)
@@ -43,13 +43,13 @@ def submit_merge_requests(remote, local_branch):
             "mergeable.".format(global_vars.global_target_branch))
         return
 
-    # We must submit MRs from the oldest. And before submitting an MR, we
+    # We must merge MRs from the oldest. And before merging an MR, we
     # must change its target_branch to the main branch.
     for mr in mergeables:
         mr.update(target_branch=global_vars.global_target_branch)
         #FIXME: Poll the merge req status and waiting until
         # merge_status is no longer "checking".
-        mr.submit()
+        mr.merge()
 
     print_with_color("\nSUCCESS\n", Bcolors.OKGREEN)
     print("New Merged MRs:")
@@ -254,9 +254,9 @@ def main():
                 "HEAD is detached. Are you in the process of a rebase?")
         local_branch = repo.active_branch.name
 
-    # Submit the MRs if they become mergeable.
+    # Merge the MRs if they become mergeable.
     if args.merge:
-        submit_merge_requests(remote, local_branch)
+        merge_merge_requests(remote, local_branch)
         sys.exit(0)
 
     create_merge_requests(repo, remote, local_branch)

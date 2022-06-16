@@ -85,9 +85,9 @@ class MergeRequest:
         self._iid = data["iid"]
         self._web_url = data["web_url"]
 
-    def submit(self):
+    def merge(self):
         if self._iid is None:
-            raise ValueError("Must set iid before submittng an MR!")
+            raise ValueError("Must set iid before merging an MR!")
         url = "{}/{}/merge".format(global_vars.mr_url, self._iid)
         while True:
             r = requests.put(url, headers=global_vars.headers)
