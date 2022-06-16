@@ -5,7 +5,7 @@ GerritLab: Gerrit-style Code Review for GitLab Projects.
 
 The branch-based approach that GitLab merge request uses can slow things down
 when you really want to create dependent MRs so they can be reviewed in
-parallel. With great amount of manual effort and carefulness,  you can actually
+parallel. With great amount of manual effort and carefulness, you can actually
 achieve that by setting an MR's target branch to the one it's dependent on and
 making sure before merging any MRs, you change their target branch back to
 `master` (or any default main branch in your project). This becomes pretty
@@ -16,7 +16,7 @@ accidentally deleted where outstanding MRs still have dependencies).
 Does this somehow remind you of the good things about Gerrit? Yeah, in Gerrit,
 nothing stops you from creating dependent reviews, since every commit creates a
 new review. To bring this Gerrit-style code review to GitLab repos, this
-project implements the same git command (i.e. git review) that grealy
+project implements the same git command (i.e. git review) that greatly
 simplifies the steps to create/update/merge MRs.
 
 ## Install git-review
