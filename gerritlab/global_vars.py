@@ -35,8 +35,10 @@ def load_config(remote, repo):
     project_id = configs["project_id"]
     if "GITLAB_PRIVATE_TOKEN" in os.environ:
         private_token = os.environ["GITLAB_PRIVATE_TOKEN"]
-    else:
+    elif "private_token" in configs:
         private_token = configs["private_token"]
+    else:
+        private_token = repo.config_reader().get_value("gerritlab", "private-token")
     # Optional configs.
     if "target_branch" in configs:
         global_target_branch = configs["target_branch"]
