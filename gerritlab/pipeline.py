@@ -50,14 +50,7 @@ class Pipeline:
 
 
 def generate_pipeline_status_str(status):
-    status_str = ""
-    for i, s in enumerate(status):
-        if i == 0:
-            status_str += "?"
-        else:
-            status_str += "&"
-        status_str += "status=" + s
-    return status_str
+    return "?status=" + "&status=".join(status)
 
 
 def get_pipelines_by_sha(sha, status=None):
