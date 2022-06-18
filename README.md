@@ -119,3 +119,13 @@ New Merged MRs:
 * https://gitlab-master.example.com/myproject/-/merge_requests/109 tests: Add commit c.
     master -> master-79e5 (master)
 To ssh://git@gitlab.example.com:12051/myproject.git
+```
+
+## Development
+### Run the tests
+Integration tests require a submodule at `unit_tests/gerritlab_tests`, with a
+Gitlab upstream and a *personal* access token configured (project access tokens
+cannot delete MRs).
+
+Tests can then be triggered using `./unit_tests/merge_request_test.py` or just
+`pytest`.
