@@ -20,6 +20,10 @@ class PipelineStatus:
 
 
 class Pipeline:
+    _ref: str
+    _id: int
+    _sha: str
+    _status: PipelineStatus
 
     def __init__(self, json_data):
         for attr in json_data:
