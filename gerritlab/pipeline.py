@@ -39,7 +39,7 @@ class Pipeline:
 
     def create(self, ref):
         requests.post(
-            "{}?ref={}".format(global_var.pipeline_url, self._ref),
+            "{}?ref={}".format(global_vars.pipeline_url, self._ref),
             headers=global_vars.headers)
 
     def retry(self):
