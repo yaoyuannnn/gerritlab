@@ -1,11 +1,24 @@
 """This file includes easy APIs to handle GitLab merge requests."""
 
-import requests, time
+from typing import Optional
+import time
+
+import requests
+import git
 
 from gerritlab import utils, global_vars
 
 
 class MergeRequest:
+    _remote: git.Remote
+    _source_branch: str
+    _target_branch: Optional[str]
+    _title: Optional[str]
+    _description: Optional[str]
+    _iid: Optional[str]
+    _web_url: Optional[str]
+    _mergeable: bool
+    _local_branch: str
 
     def __init__(
             self, remote, source_branch=None, target_branch=None, title=None,

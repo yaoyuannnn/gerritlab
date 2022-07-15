@@ -3,7 +3,7 @@
 import sys
 import os
 import unittest
-from git import Repo
+from git.repo import Repo
 import shutil
 import tempfile
 import time

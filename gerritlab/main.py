@@ -2,7 +2,7 @@ import sys
 import os
 import argparse
 import collections
-from git import Repo
+from git.repo import Repo
 
 from gerritlab import utils, global_vars, merge_request, pipeline
 from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
