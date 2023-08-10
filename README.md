@@ -16,13 +16,11 @@ accidentally deleted where outstanding MRs still have dependencies).
 Does this somehow remind you of the good things about Gerrit? Yeah, in Gerrit,
 nothing stops you from creating dependent reviews, since every commit creates a
 new review. To bring this Gerrit-style code review to GitLab repos, this
-project implements the same git command (i.e. git review) that greatly
+project implements a "git lab" command that greatly
 simplifies the steps to create/update/merge MRs.
 
-## Install git-review
-Clone the repo and put the local directory to your PATH. Make sure it comes
-before any existing `git-review` in PATH so when you do `git review`, the right
-executable is picked up by Git.
+## Install the git "lab" subcommand
+Clone the repo and put the local directory to your PATH.
 
 ## Set up a .gitreview.
 
@@ -73,18 +71,18 @@ Change-Id added on.
 To create/update MRs, simply do:
 
 ```console
-$ git review
+$ git lab
 ```
 
 This will create/update an MR for each commit on the current branch that's
 ahead of `origin/master` (if `master` is the `target_branch`).  Note that if
 you want to create/update MRs in a remote other than the default `origin`, do
-`git review my-remote`.  If a commit finds an existing MR with the same
+`git lab my-remote`.  If a commit finds an existing MR with the same
 Change-Id in the GitLab repo, the MR will be updated with new commit. The
 following shows an example that creates 3 new MRs.
 
 ```console
-$ git review origin
+$ git lab origin
 
 SUCCESS
 
@@ -105,7 +103,7 @@ merge any mergeable MRs created off of the current branch, which takes into
 account the MR dependency chain.
 
 ```console
-$ git review -m
+$ git lab -m
 Merging merge requests:
 * https://gitlab.example.com/myproject/-/merge_requests/110 tests: Add commit a.
     [mergeable]: True
