@@ -31,11 +31,7 @@ class MergeRequestTest(unittest.TestCase):
         self._test_repo = Repo(self._test_project_dir)
         self._remote = self._test_repo.remote(name=REMOTE_NAME)
         # Install the post-commit hook for the GitLab test repo.
-        shutil.copy(
-            os.path.join(repo_path, "commit-msg"),
-            os.path.join(
-                repo_path, ".git/modules/{}/hooks/commit-msg".format(
-                    GITLAB_TEST_PROJECT_PATH)))
+        main.ensure_commitmsg_hook(self._test_repo.git_dir)
         self._test_repo.config_writer().set_value("user", "name",
                                                   USER).release()
         self._test_repo.config_writer().set_value("user", "email",
