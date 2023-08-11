@@ -1,7 +1,5 @@
 """This file provides easy APIs to handle Gitlab pipelines."""
 
-import requests
-
 from gerritlab import utils, global_vars
 
 
@@ -38,19 +36,16 @@ class Pipeline:
         return self._status
 
     def create(self, ref):
-        requests.post(
-            "{}?ref={}".format(global_vars.pipeline_url, self._ref),
-            headers=global_vars.headers)
+        global_vars.session.post(
+            "{}?ref={}".format(global_vars.pipeline_url, self._ref))
 
     def retry(self):
-        requests.post(
-            "{}/{}/retry".format(global_vars.pipelines_url, self._id),
-            headers=global_vars.headers)
+        global_vars.session.post(
+            "{}/{}/retry".format(global_vars.pipelines_url, self._id))
 
     def cancel(self):
-        requests.post(
-            "{}/{}/cancel".format(global_vars.pipelines_url, self._id),
-            headers=global_vars.headers)
+        global_vars.session.post(
+            "{}/{}/cancel".format(global_vars.pipelines_url, self._id))
 
 
 def generate_pipeline_status_str(status):
@@ -60,8 +55,8 @@ def generate_pipeline_status_str(status):
 def get_pipelines_by_sha(sha, status=None):
     """Returns a list of `Pipeline`s associated with the given `sha`."""
     status_str = generate_pipeline_status_str(status)
-    r = requests.get(
-        global_vars.pipelines_url + status_str, headers=global_vars.headers)
+    r = global_vars.session.get(
+        global_vars.pipelines_url + status_str)
     pipelines = []
     for pipeline in r.json():
         if pipeline["sha"] == sha:
@@ -72,8 +67,8 @@ def get_pipelines_by_sha(sha, status=None):
 def get_pipelines_by_change_id(change_id, repo, status=None):
     """Returns a list of `Pipeline`s associated with the given `change_id`."""
     status_str = generate_pipeline_status_str(status)
-    r = requests.get(
-        global_vars.pipelines_url + status_str, headers=global_vars.headers)
+    r = global_vars.session.get(
+        global_vars.pipelines_url + status_str)
     pipelines = []
     for pipeline in r.json():
         try:
