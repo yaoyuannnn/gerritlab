@@ -1,3 +1,4 @@
+import shutil
 import sys
 import os
 import argparse
@@ -230,6 +231,14 @@ def create_merge_requests(repo, remote, local_branch):
     print("To {}".format(remote.url))
 
 
+def ensure_commitmsg_hook(git_dir):
+    commitmsg_hook_file = os.path.join(git_dir, "hooks", "commit-msg")
+
+    if not os.path.exists(commitmsg_hook_file):
+        source = os.path.join(os.path.dirname(__file__), "commit-msg")
+        shutil.copy(source, commitmsg_hook_file)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Commandline flags for using git-review.")
@@ -242,10 +251,19 @@ def main():
     parser.add_argument(
         "--merge", "-m", action="store_true", default=False,
         help="Merge the MRs if they are approved.")
+    parser.add_argument(
+        "--setup", "-s", action="store_true", default=False,
+        help="Just run the repo setup commands but don't submit anything.")
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
+    ensure_commitmsg_hook(repo.git_dir)
+    
     global_vars.load_config(args.remote, repo)
+
+    if args.setup:
+        return
+
     remote = repo.remote(name=args.remote)
     local_branch = args.local_branch
     if args.local_branch is None:

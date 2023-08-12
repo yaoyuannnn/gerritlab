@@ -24,15 +24,6 @@ Clone the repo and put the local directory to your PATH. Make sure it comes
 before any existing `git-review` in PATH so when you do `git review`, the right
 executable is picked up by Git.
 
-## Install Change-Id commit-msg hook.
-We need a commit-msg hook that will add a Change-Id to every commit. This
-Change-Id will be used as the key to find if there's an existing MR in the
-GitLab repo. The following installs the commit-msg hook to your project.
-
-```console
-$ cp commit-msg path-to-your-project/.git/hooks/commit-msg
-```
-
 ## Set up a .gitreview.
 
 Before using this tool, you need to create a .gitreview file in the root
@@ -62,6 +53,20 @@ $ git config --global gerritlab.private-token "[your-private-token]"
 # OR
 $ git config --local gerritlab.private-token "[your-private-token]"
 ```
+
+## Install Change-Id commit-msg hook.
+We need a commit-msg hook that will add a Change-Id to every commit. This
+Change-Id will be used as the key to find if there's an existing MR in the
+GitLab repo.  The following installs the commit-msg hook to your project.
+
+```console
+$ git review --setup
+```
+
+Commits created/amended after installation of the hook will
+automatically have a Change-Id added.  Commits created prior to the
+installation of the hook will need to amended so that they'll get the
+Change-Id added on.
 
 ## Create/Update MRs.
 
