@@ -37,10 +37,10 @@ $ cp commit-msg path-to-your-project/.git/hooks/commit-msg
 
 Before using this tool, you need to create a .gitreview file in the root
 directory of your project. It needs to contain info like GitLab project ID and
-a private token that can be used to access the GitLab repo. Current optional
-configuration flags include `target_branch` and `remove_source_branch`.
-`target_branch` represents the target branch that you want the MRs to
-eventually merge into. By default, `target_branch` is `master`.
+a private token that can be used to access the GitLab repo and the GitLab API.
+Current optional configuration flags include `target_branch` and
+`remove_source_branch`. `target_branch` represents the target branch that you
+want the MRs to eventually merge into. By default, `target_branch` is `master`.
 `remove_source_branch` can be used to delete the source branch of an MR once
 it's merged. By default, this is set to `True`.  The following shows an example
 of `.gitreview`:
