@@ -1,5 +1,6 @@
 """This file includes easy APIs to handle GitLab merge requests."""
 
+import sys
 from typing import Optional
 import time
 
@@ -135,11 +136,18 @@ def _get_open_merge_requests():
     per_page = 50
     results = []
     while True:
-        next_page = requests.get("{}?state=opened&page={}&per_page={}".format(
-            global_vars.mr_url, page, per_page),
-                         headers=global_vars.headers)
+        try:
+            next_page = requests.get("{}?state=opened&page={}&per_page={}".format(
+                global_vars.mr_url, page, per_page),
+                             headers=global_vars.headers)
+            next_page.raise_for_status()
+        except (requests.exceptions.HTTPError, requests.exceptions.InvalidHeader) as e:
+            print("Error gathering merge requests, message: {}".format(e))
+            sys.exit(1)
+
         if not next_page.json():
             break
+
         results.append(next_page)
         page += 1
     return results
