@@ -7,7 +7,7 @@ import time
 import requests
 import git
 
-from gerritlab import utils, global_vars
+from gerritlab import global_vars
 
 
 class MergeRequest:
@@ -65,8 +65,8 @@ class MergeRequest:
             "description": self._description,
             "remove_source_branch": global_vars.remove_source_branch,
         }
-        r = requests.post(
-            global_vars.mr_url, headers=global_vars.headers, data=data)
+        r = global_vars.session.post(
+            global_vars.mr_url, data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
@@ -90,9 +90,9 @@ class MergeRequest:
             "title": self._title,
             "description": self._description,
         }
-        r = requests.put(
+        r = global_vars.session.put(
             "{}/{}".format(global_vars.mr_url, self._iid),
-            headers=global_vars.headers, data=data)
+            data=data)
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         data = r.json()
@@ -104,7 +104,7 @@ class MergeRequest:
             raise ValueError("Must set iid before merging an MR!")
         url = "{}/{}/merge".format(global_vars.mr_url, self._iid)
         while True:
-            r = requests.put(url, headers=global_vars.headers)
+            r = global_vars.session.put(url)
             if r.status_code == requests.codes.ok:
                 break
             else:
@@ -113,9 +113,8 @@ class MergeRequest:
     def delete(self, delete_source_branch=False):
         if self._iid is None:
             raise ValueError("Must set iid before deleting an MR!")
-        r = requests.delete(
-            "{}/{}".format(global_vars.mr_url, self._iid),
-            headers=global_vars.headers)
+        r = global_vars.session.delete(
+            "{}/{}".format(global_vars.mr_url, self._iid))
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         if delete_source_branch:
@@ -123,9 +122,8 @@ class MergeRequest:
 
     def get_commits(self):
         """Returns a list of commits in this merge request."""
-        r = requests.get(
-            "{}/{}/commits".format(global_vars.mr_url, self._iid),
-            headers=global_vars.headers)
+        r = global_vars.session.get(
+            "{}/{}/commits".format(global_vars.mr_url, self._iid))
         if r.status_code != requests.codes.ok:
             r.raise_for_status()
         return r.json()
@@ -137,9 +135,8 @@ def _get_open_merge_requests():
     results = []
     while True:
         try:
-            next_page = requests.get("{}?state=opened&page={}&per_page={}".format(
-                global_vars.mr_url, page, per_page),
-                             headers=global_vars.headers)
+            next_page = global_vars.session.get("{}?state=opened&page={}&per_page={}".format(
+                global_vars.mr_url, page, per_page))
             next_page.raise_for_status()
         except (requests.exceptions.HTTPError, requests.exceptions.InvalidHeader) as e:
             print("Error gathering merge requests, message: {}".format(e))

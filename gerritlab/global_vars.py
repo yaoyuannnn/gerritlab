@@ -2,6 +2,7 @@
 
 import os
 import configparser
+import requests
 
 mr_url = None
 pipeline_url = None
@@ -12,6 +13,7 @@ remove_source_branch = False
 username = None
 email = None
 ci_mode = False
+session = None
 
 
 def load_config(remote, repo):
@@ -23,6 +25,7 @@ def load_config(remote, repo):
     global headers
     global global_target_branch
     global remove_source_branch
+    global session
 
     username = repo.config_reader().get_value("user", "name")
     email = repo.config_reader().get_value("user", "email")
@@ -47,4 +50,5 @@ def load_config(remote, repo):
     mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
     pipeline_url = "{}/api/v4/projects/{}/pipeline".format(host, project_id)
     pipelines_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
-    headers = {"PRIVATE-TOKEN": private_token}
+    session = requests.session()
+    session.headers.update({"PRIVATE-TOKEN": private_token})
