@@ -1,3 +1,2 @@
 GitPython
-pytest
 requests
