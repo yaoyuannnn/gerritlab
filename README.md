@@ -58,7 +58,7 @@ Change-Id will be used as the key to find if there's an existing MR in the
 GitLab repo.  The following installs the commit-msg hook to your project.
 
 ```console
-$ git review --setup
+$ git lab --setup
 ```
 
 Commits created/amended after installation of the hook will
