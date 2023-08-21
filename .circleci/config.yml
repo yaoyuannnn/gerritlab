@@ -11,6 +11,9 @@ jobs:
       - checkout
       - python/install-packages:
           pkg-manager: pip
+      - python/install-packages:
+          pip-dependency-file: test-requirements.txt
+          pkg-manager: pip          
       - add_ssh_keys:
           fingerprints:
             - 6b:31:14:0e:9b:c6:5e:0c:8e:1e:88:7b:06:e2:4e:ee

@@ -20,7 +20,13 @@ project implements a "git lab" command that greatly
 simplifies the steps to create/update/merge MRs.
 
 ## Install the git "lab" subcommand
-Clone the repo and put the local directory to your PATH.
+Clone this repo and install the package.
+
+```console
+$ git clone https://github.com/yaoyuannnn/gerritlab.git
+$ cd gerritlab
+$ pip install .
+```
 
 ## Set up a .gitreview.
 
@@ -125,6 +131,15 @@ To ssh://git@gitlab.example.com:12051/myproject.git
 ```
 
 ## Development
+### Install the package in development mode
+```console
+$ pip install -e .
+```
+
+This will make a `git lab` command available which points to your
+development checkout (assuming you have pip's local bin directory in
+your PATH).
+
 ### Run the tests
 Integration tests require a submodule at `unit_tests/gerritlab_tests`, with a
 Gitlab upstream and a *personal* access token configured (project access tokens
