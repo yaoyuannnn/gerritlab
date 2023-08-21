@@ -59,7 +59,7 @@ def get_change_id(msg, silent=False):
     if m:
         return m.group(1)
     elif not silent:
-        raise ValueError("Didn't find the Change-Id in the commit message!")
+        raise ValueError("Didn't find the Change-Id in the commit message!\n{}".format(msg))
     else:
         return None
 
