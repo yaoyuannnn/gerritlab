@@ -22,9 +22,12 @@ jobs:
           command: |
             ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
             git submodule update --init --recursive
+      - run: mkdir -p test-results
       - run:
           name: Run tests
-          command: pytest
+          command: pytest --junitxml=test-results/junit.xml -o junit_family=legacy
+      - store_test_results:
+          path: test-results
 
 workflows:
   checkin:
