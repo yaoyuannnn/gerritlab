@@ -67,8 +67,7 @@ class MergeRequest:
         }
         r = global_vars.session.post(
             global_vars.mr_url, data=data)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
+        r.raise_for_status()
         data = r.json()
         self._iid = data["iid"]
         self._web_url = data["web_url"]
@@ -93,11 +92,21 @@ class MergeRequest:
         r = global_vars.session.put(
             "{}/{}".format(global_vars.mr_url, self._iid),
             data=data)
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
+        r.raise_for_status()
         data = r.json()
         self._iid = data["iid"]
         self._web_url = data["web_url"]
+        # After updating the target branch of an MR (or changes have been made
+        # to the target branch), GitLab sometimes doesn't automatically rebase
+        # its source branch against the new target branch.  Here we push a
+        # mandatory rebase.
+        self.rebase()
+
+    def rebase(self):
+        """Rebases source_branch of the MR against its target_branch."""
+        r = global_vars.session.put(
+            "{}/{}/rebase".format(global_vars.mr_url, self._iid))
+        r.raise_for_status()
 
     def merge(self):
         if self._iid is None:
@@ -115,8 +124,7 @@ class MergeRequest:
             raise ValueError("Must set iid before deleting an MR!")
         r = global_vars.session.delete(
             "{}/{}".format(global_vars.mr_url, self._iid))
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
+        r.raise_for_status()
         if delete_source_branch:
             self._remote.push(refspec=(":{}".format(self._source_branch)))
 
@@ -124,8 +132,7 @@ class MergeRequest:
         """Returns a list of commits in this merge request."""
         r = global_vars.session.get(
             "{}/{}/commits".format(global_vars.mr_url, self._iid))
-        if r.status_code != requests.codes.ok:
-            r.raise_for_status()
+        r.raise_for_status()
         return r.json()
 
 def _get_open_merge_requests():
