@@ -109,7 +109,7 @@ def create_merge_requests(repo, remote, local_branch):
             "Proceed? ({}/n) ".format(msg_with_color("[y]", Bcolors.OKCYAN)))
         do_review = input("\n{}".format(do_review_prompt))
         while do_review not in ['', "y", "n"]:
-            do_review = input("Unkown input. {}".format(do_review_prompt))
+            do_review = input("Unknown input. {}".format(do_review_prompt))
         if do_review == "n":
             return
     commits.reverse()
