@@ -64,8 +64,8 @@ def create_merge_requests(repo, remote, local_branch):
 
     def can_skip_ci(commit, remote_branch):
         """Finds out if this commit can skip the CI pipeline."""
-        # Chek if the commit actually changes anything compared to the remote
-        # that requries a new CI pipeline.
+        # Check if the commit actually changes anything compared to the remote
+        # that requires a new CI pipeline.
         if "{}/{}".format(remote.name,
                           remote_branch) in [r.name for r in remote.refs]:
             diff = list(
@@ -77,7 +77,7 @@ def create_merge_requests(repo, remote, local_branch):
         return False
 
     def cancel_prev_pipelines(commit):
-        """Cancels previous pipelinesa associated with the same Change-Id."""
+        """Cancels previous pipelines associated with the same Change-Id."""
         # Get the running pipelines.
         change_id = utils.get_change_id(commit.message)
         for p in pipeline.get_pipelines_by_change_id(
