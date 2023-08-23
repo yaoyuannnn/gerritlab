@@ -7,7 +7,7 @@ import time
 import requests
 import git
 
-from gerritlab import global_vars
+from gerritlab import global_vars, utils
 
 
 class MergeRequest:
@@ -134,6 +134,14 @@ class MergeRequest:
             "{}/{}/commits".format(global_vars.mr_url, self._iid))
         r.raise_for_status()
         return r.json()
+
+    def needs_update(self, commit) -> bool:
+        title, desc = utils.get_msg_title_description(commit.commit.message)
+        return (self.source_branch != commit.source_branch or 
+                self.target_branch != commit.target_branch or 
+                self._title != title or 
+                self._description != desc.strip())
+
 
 def _get_open_merge_requests():
     """Gets all open merge requests in the GitLab repo."""

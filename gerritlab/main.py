@@ -1,8 +1,10 @@
 import shutil
 import sys
+import time
 import os
 import argparse
 import collections
+from contextlib import contextmanager
 from git.repo import Repo
 
 from gerritlab import utils, global_vars, merge_request, pipeline
@@ -58,23 +60,20 @@ def merge_merge_requests(remote, local_branch):
         mr.print_info(verbose=True)
     print("To {}".format(remote.url))
 
+# key is timer name, value is seconds counted
+timers = {}
 
+@contextmanager
+def timing(timer_name):
+    start = time.time()
+    try:
+        yield
+    finally:
+        elapsed = time.time() - start
+        timers[timer_name] = timers.get(timer_name, 0) + elapsed
+    
 def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
-
-    def can_skip_ci(commit, remote_branch):
-        """Finds out if this commit can skip the CI pipeline."""
-        # Check if the commit actually changes anything compared to the remote
-        # that requires a new CI pipeline.
-        if "{}/{}".format(remote.name,
-                          remote_branch) in [r.name for r in remote.refs]:
-            diff = list(
-                repo.iter_commits(
-                    "{}/{}..{}".format(
-                        remote.name, remote_branch, commit.hexsha)))
-            if not any(diff):
-                return True
-        return False
 
     def cancel_prev_pipelines(commit):
         """Cancels previous pipelines associated with the same Change-Id."""
@@ -90,7 +89,8 @@ def create_merge_requests(repo, remote, local_branch):
             p.cancel()
 
     # Sync up remote branches.
-    remote.fetch(prune=True)
+    with timing("fetch"):
+        remote.fetch(prune=True)
 
     # Get the local commits that are ahead of the remote/target_branch.
     commits = list(
@@ -126,91 +126,47 @@ def create_merge_requests(repo, remote, local_branch):
                 local_branch, utils.get_change_id(commits[idx - 1].message))
         commits_data.append(Commit(c, source_branch, target_branch))
 
-    # Before we update the existing the MRs or create new MRs, there are a few
-    # important notes:
-    #
-    # 1) If an MR's source branch becomes a subset of its target branch, that
-    #    is, commits in the source branch are all included in the target branch,
-    #    the MR will be auto-merged as it becomes meaningless.
-    # 2) Because of 1, we must be careful when updating the existing MRs. For
-    #    example, there are 3 existing MRs mr0, mr1 and mr2, with their
-    #    dependencies as master <= mr0 <= mr1 <= mr2. If we locally rebase the
-    #    commits to be master <= mr2 <= mr0 <= mr1, pushing the new commits to
-    #    each MR's source branch will end up auto-merging mr2, as mr'2 target
-    #    branch mr1 now contains its commit. To avoid this, we must update an
-    #    MR's target branch before pushing the new commit. Also, we must update
-    #    MRs from the end of the existing MR dependency chain. In this example,
-    #    we must update mr2's target branch first and then push the new commit.
-    #    The same goes for mr0 and mr1.
-    #
-    # The following code updates/creates MRs with the above notes in mind.
+    # Workflow:
+    # 1) Single push with all branch updates.
+    # 2) Create or update MRs.
 
+    # Push commits to Change-Id-named branches
+    refs_to_push = ["{}:refs/heads/{}".format(
+        c.commit.hexsha, c.source_branch) for c in commits_data]
+    with timing("push"):
+        remote.push(refspec=refs_to_push, force=True)        
+    
     # Get existing MRs created off of the given branch.
-    current_mrs = merge_request.get_all_merge_requests(remote, local_branch)
-    current_mr_chain = merge_request.get_merge_request_chain(current_mrs)
+    with timing("get_mrs"):
+        current_mrs_by_source_branch = {
+            mr.source_branch: mr for mr in merge_request.get_all_merge_requests(
+                remote, local_branch)
+        }
 
-    # Update the existing MRs from the end of the MR dependency chain.
-    updated_commits = []
-    updated_mrs = []
-    for mr in reversed(current_mr_chain):
-        for c in commits_data:
-            if c.source_branch == mr.source_branch:
-                # Delay the update if the updated target branch doesn't exist,
-                # meaning a new MR will be created off of that target branch.
-                updated_target_branch_exists = "{}/{}".format(
-                    remote.name,
-                    c.target_branch) in [ref.name for ref in repo.references]
-                if not updated_target_branch_exists:
-                    continue
-                # Do nothing if the commit doesn't contain any new changes.
-                if can_skip_ci(c.commit, c.source_branch):
-                    continue
-                # Update the target branch of this MR.
-                title, desp = utils.get_msg_title_description(c.commit.message)
-                mr.update(
-                    source_branch=c.source_branch,
-                    target_branch=c.target_branch, title=title,
-                    description=desp)
-                cancel_prev_pipelines(c.commit)
-                # Update the remote branch.
-                remote.push(
-                    refspec="{}:refs/heads/{}".format(
-                        c.commit.hexsha, c.source_branch), force=True)
-                updated_commits.append(c)
-                updated_mrs.append(mr)
-                break
-
-    # Create new MRs.
-    commits_data = [c for c in commits_data if c not in updated_commits]
     new_mrs = []
+    updated_mrs = []
+    
     for c in commits_data:
         title, desp = utils.get_msg_title_description(c.commit.message)
-        mr = merge_request.get_merge_request(remote, c.source_branch)
-        if mr is not None:
-            # Do nothing if the commit doesn't contain any new changes.
-            if can_skip_ci(c.commit, c.source_branch):
-                continue
-            cancel_prev_pipelines(c.commit)
-            # Update the remote branch.
-            remote.push(
-                refspec="{}:refs/heads/{}".format(
-                    c.commit.hexsha, c.source_branch), force=True)
-            # Update the MR if it already exits.
-            mr.update(
-                source_branch=c.source_branch,
-                target_branch=c.target_branch, title=title,
-                description=desp)
-            updated_mrs.append(mr)
+        
+        mr = current_mrs_by_source_branch.get(c.source_branch)
+        if mr:
+            # Update the MR if needed
+            if mr.needs_update(c):
+                with timing("update_mrs"):
+                    mr.update(
+                        source_branch=c.source_branch,
+                        target_branch=c.target_branch, title=title,
+                        description=desp)
+                with timing("Cancelling previous pipelines"):
+                    cancel_prev_pipelines(c.commit)
+                updated_mrs.append(mr)
         else:
-            # Push the commit to remote by creating a new branch.
-            remote.push(
-                refspec="{}:refs/heads/{}".format(
-                    c.commit.hexsha, c.source_branch), force=True)
-            # Create new MRs.
             mr = merge_request.MergeRequest(
                 remote=remote, source_branch=c.source_branch,
                 target_branch=c.target_branch, title=title, description=desp)
-            mr.create()
+            with timing("create_mrs"):
+                mr.create()
             new_mrs.append(mr)
 
     if len(updated_mrs) == 0 and len(new_mrs) == 0:
@@ -229,6 +185,10 @@ def create_merge_requests(repo, remote, local_branch):
             mr.print_info(verbose=True)
         print()
     print("To {}".format(remote.url))
+    if os.getenv("GERRITLAB_TIMING"):
+        print("Timers:")
+        for timer_name, seconds in timers.items():
+            print(f"{timer_name}: {seconds} seconds")
 
 
 def ensure_commitmsg_hook(git_dir):
