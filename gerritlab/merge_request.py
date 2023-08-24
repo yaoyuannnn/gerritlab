@@ -96,11 +96,6 @@ class MergeRequest:
         data = r.json()
         self._iid = data["iid"]
         self._web_url = data["web_url"]
-        # After updating the target branch of an MR (or changes have been made
-        # to the target branch), GitLab sometimes doesn't automatically rebase
-        # its source branch against the new target branch.  Here we push a
-        # mandatory rebase.
-        self.rebase()
 
     def rebase(self):
         """Rebases source_branch of the MR against its target_branch."""
