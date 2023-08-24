@@ -65,10 +65,19 @@ class MergeRequest:
             "description": self._description,
             "remove_source_branch": global_vars.remove_source_branch,
         }
-        r = global_vars.session.post(
-            global_vars.mr_url, data=data)
-        r.raise_for_status()
-        data = r.json()
+        try:
+            r = global_vars.session.post(
+                global_vars.mr_url, data=data)
+            data = r.json()
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise SystemExit("Error creating merge request for "
+                             "{} → {}\n{}\n{}".format(
+                self._source_branch,
+                self._target_branch,
+                e,
+                data
+            ))
         self._iid = data["iid"]
         self._web_url = data["web_url"]
 
