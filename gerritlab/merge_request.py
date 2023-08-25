@@ -150,7 +150,7 @@ def _get_open_merge_requests():
     results = []
     while True:
         try:
-            next_page = global_vars.session.get("{}?state=opened&page={}&per_page={}".format(
+            next_page = global_vars.session.get("{}?state=opened&page={}&per_page={}&scope=created_by_me".format(
                 global_vars.mr_url, page, per_page))
             next_page.raise_for_status()
         except (requests.exceptions.HTTPError, requests.exceptions.InvalidHeader) as e:
@@ -179,8 +179,7 @@ def get_all_merge_requests(remote, branch):
     mrs = []
     for r in _get_open_merge_requests():
         for json_data in r.json():
-            if json_data["source_branch"].startswith(
-                    branch) and json_data["author"]["name"] == global_vars.username:
+            if json_data["source_branch"].startswith(branch):
                 mrs.append(MergeRequest(remote=remote, json_data=json_data))
     return mrs
 
