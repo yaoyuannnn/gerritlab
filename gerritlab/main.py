@@ -3,7 +3,6 @@ import sys
 import time
 import os
 import argparse
-import collections
 from contextlib import contextmanager
 from git.repo import Repo
 
@@ -60,6 +59,12 @@ def merge_merge_requests(remote, local_branch):
         mr.print_info(verbose=True)
     print("To {}".format(remote.url))
 
+class Commit:
+    def __init__(self, commit, source_branch, target_branch):
+        self.commit = commit
+        self.source_branch = source_branch
+        self.target_branch = target_branch
+
 # key is timer name, value is seconds counted
 timers = {}
 
@@ -113,8 +118,6 @@ def create_merge_requests(repo, remote, local_branch):
         if do_review == "n":
             return
     commits.reverse()
-    Commit = collections.namedtuple(
-        "Commit", ["commit", "source_branch", "target_branch"])
     commits_data = []
     for idx, c in enumerate(commits):
         source_branch = utils.get_remote_branch_name(
