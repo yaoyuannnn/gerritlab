@@ -20,6 +20,7 @@ class MergeRequest:
     _web_url: Optional[str]
     _mergeable: bool
     _local_branch: str
+    _needs_save: bool
 
     def __init__(
             self, remote, source_branch=None, target_branch=None, title=None,
@@ -32,6 +33,7 @@ class MergeRequest:
         self._iid = None
         self._web_url = None
         self._mergeable = False
+        self._needs_save = False
 
         self._set_data(json_data)
 
@@ -144,8 +146,8 @@ class MergeRequest:
 
     def needs_update(self, commit) -> bool:
         title, desc = utils.get_msg_title_description(commit.commit.message)
-        return (self.source_branch != commit.source_branch or 
-                self.target_branch != commit.target_branch or 
+        return (self._source_branch != commit.source_branch or 
+                self._target_branch != commit.target_branch or 
                 self._title != title or 
                 self._description != desc.strip())
 
@@ -166,6 +168,31 @@ class MergeRequest:
             if self._sha == commit.commit.hexsha:
                 return
             time.sleep(0.500)
+
+    def set_target_branch(self, target_branch):
+        if self._target_branch != target_branch:
+            self._target_branch = target_branch
+            self._needs_save = True
+            
+    def set_title(self, title):
+        if self._title != title:
+            self._title = title
+            self._needs_save = True
+            
+    def set_desc(self, desc):
+        if self._description.strip() != desc.strip():
+            self._description = desc
+            self._needs_save = True
+            
+    def save(self) -> bool:
+        saved = False
+        
+        if self._needs_save:
+            self.update()
+            saved = True
+
+        self._needs_save = False
+        return saved
 
 
 def _get_open_merge_requests():
