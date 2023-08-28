@@ -96,6 +96,25 @@ def timing(timer_name):
         elapsed = time.time() - start
         timers[timer_name] = timers.get(timer_name, 0) + elapsed
     
+def generate_augmented_mr_description(commits_data, commit):
+    if len(commits_data) <= 1:
+        # No augmentation if only pushing a single commit
+        return utils.get_msg_title_description(commit.commit.message)
+    
+    target_branch = commits_data[0].target_branch
+
+    extra = ["Related MRs:"]
+    for c in reversed(commits_data):
+        text = f"* !{c.mr._iid}"
+        if c == commit:
+            text += " (This MR)"
+        extra.append(text)
+
+    extra.append(f"* _{target_branch}_")
+
+    title, desc = utils.get_msg_title_description(commit.commit.message)
+    return (title, desc + "\n" + "\n".join(extra) + "\n")
+    
 def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
 
@@ -152,22 +171,13 @@ def create_merge_requests(repo, remote, local_branch):
     updated_mrs = []
     commits_to_pipeline_cancel = []
 
+    # Link commits with existing MRs, or create missing MRs
     for c in commits_data:
-        title, desp = utils.get_msg_title_description(c.commit.message)
-        
         mr = current_mrs_by_source_branch.get(c.source_branch)
         if mr:
             c.mr = mr
-            # Update the MR if needed
-            if mr.needs_update(c):
-                with timing("update_mrs"):
-                    mr.update(
-                        source_branch=c.source_branch,
-                        target_branch=c.target_branch, title=title,
-                        description=desp)
-                commits_to_pipeline_cancel.append(c.commit)
-                updated_mrs.append(mr)
         else:
+            title, desp = utils.get_msg_title_description(c.commit.message)
             mr = merge_request.MergeRequest(
                 remote=remote, source_branch=c.source_branch,
                 target_branch=c.target_branch, title=title, description=desp)
@@ -176,6 +186,22 @@ def create_merge_requests(repo, remote, local_branch):
                 mr.create()
             new_mrs.append(mr)
     
+    # At this point we have one MR for each commit.
+    # title/desc/target_branch may be out-of-date for preexisting MRs.
+    # Augment the MR descriptions to include a list of related MRs.
+    for c in commits_data:
+        title, desc = generate_augmented_mr_description(commits_data, c)
+        mr = c.mr
+
+        mr.set_target_branch(c.target_branch)
+        mr.set_title(title)
+        mr.set_desc(desc)
+        with timing("update_mrs"):
+            if mr.save() and mr not in new_mrs:
+                updated_mrs.append(mr)
+                commits_to_pipeline_cancel.append(c.commit)
+
+    # Push commits to Change-Id-named branches
     refs_to_push = ["{}:refs/heads/{}".format(
         c.commit.hexsha, c.source_branch) for c in commits_data]
     with timing("push"):
