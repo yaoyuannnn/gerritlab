@@ -217,6 +217,9 @@ def main():
     parser.add_argument(
         "--setup", "-s", action="store_true", default=False,
         help="Just run the repo setup commands but don't submit anything.")
+    parser.add_argument(
+        "--yes", action="store_true", default=False,
+        help="Do not prompt for confirmation.")
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
@@ -234,6 +237,9 @@ def main():
             raise Exception(
                 "HEAD is detached. Are you in the process of a rebase?")
         local_branch = repo.active_branch.name
+
+    if args.yes:
+        global_vars.ci_mode = True
 
     # Merge the MRs if they become mergeable.
     if args.merge:
