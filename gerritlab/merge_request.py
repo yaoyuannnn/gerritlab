@@ -33,6 +33,9 @@ class MergeRequest:
         self._web_url = None
         self._mergeable = False
 
+        self._set_data(json_data)
+
+    def _set_data(self, json_data):
         if json_data is not None:
             for attr in json_data:
                 setattr(self, "_{}".format(attr), json_data[attr])
@@ -156,6 +159,25 @@ class MergeRequest:
                 self.target_branch != commit.target_branch or 
                 self._title != title or 
                 self._description != desc.strip())
+
+    def refresh(self):
+        """
+        Update's this object's data using the latest info available from the server.
+        """
+        r = global_vars.session.get("{}/{}".format(global_vars.mr_url, self._iid))
+        r.raise_for_status()
+        self._set_data(r.json())
+        
+    def wait_until_stable(self):
+        """
+        Poll GitLab until the changes_count field has a value of "1".
+        Other values indicate that GitLab hasn't reacted to a push yet.
+        """
+        while True:
+            self.refresh()
+            if self._changes_count == "1":
+                return
+            time.sleep(0.500)
 
 
 def _get_open_merge_requests():
