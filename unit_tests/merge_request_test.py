@@ -20,11 +20,6 @@ USER = "Yuan Yao"
 EMAIL = "yaoyuannnn@gmail.com"
 
 class MergeRequestTest(unittest.TestCase):
-    # GitLab seems to need a little bit of time before the commits of the
-    # MRs get updated, after new commits are pushed to the branches. This is
-    # the time (in seconds) we'll wait before we validate the MRs.
-    WAIT_TIME_BEFORE_VALIDATE = 10
-
     def setUp(self):
         self._test_project_dir = os.path.join(
             repo_path, GITLAB_TEST_PROJECT_PATH)
@@ -40,7 +35,6 @@ class MergeRequestTest(unittest.TestCase):
         self._local_branch = LOCAL_BRANCH
         self._test_repo.git.checkout(self._local_branch)
         global_vars.ci_mode = True
-        self._wait_before_validate = True
         self._mrs = []
 
     def tearDown(self):
@@ -115,12 +109,6 @@ class MergeRequestTest(unittest.TestCase):
                 self._local_branch, utils.get_change_id(commit.message))
             self._mrs.append(
                 merge_request.get_merge_request(self._remote, source_branch))
-
-        # Wait some time before the validation, in order for GitLab to update
-        # the MRs after seeing new commits.
-        if self._wait_before_validate:
-            time.sleep(MergeRequestTest.WAIT_TIME_BEFORE_VALIDATE)
-            self._wait_before_validate = False
 
         for idx, (mr, commit) in enumerate(zip(self._mrs, commits)):
             validate_mr(

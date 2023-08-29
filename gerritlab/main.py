@@ -181,6 +181,10 @@ def create_merge_requests(repo, remote, local_branch):
     with timing("push"):
         remote.push(refspec=refs_to_push, force=True)        
 
+    with timing("stabilize"):
+        for mr in new_mrs+updated_mrs:
+            mr.wait_until_stable()
+
     if len(updated_mrs) == 0 and len(new_mrs) == 0:
         print()
         warn("No updated/new MRs.\n")
