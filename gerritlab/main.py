@@ -130,15 +130,11 @@ def create_merge_requests(repo, remote, local_branch):
         commits_data.append(Commit(c, source_branch, target_branch))
 
     # Workflow:
-    # 1) Single push with all branch updates.
-    # 2) Create or update MRs.
+    # 1) Create or update MRs.
+    # 2) Single push with all branch updates.
+    # This order works best with GitLab.  If the order is swapped GitLab
+    # can become confused (xref https://gitlab.com/gitlab-org/gitlab-foss/-/issues/368).
 
-    # Push commits to Change-Id-named branches
-    refs_to_push = ["{}:refs/heads/{}".format(
-        c.commit.hexsha, c.source_branch) for c in commits_data]
-    with timing("push"):
-        remote.push(refspec=refs_to_push, force=True)        
-    
     # Get existing MRs created off of the given branch.
     with timing("get_mrs"):
         current_mrs_by_source_branch = {
@@ -171,6 +167,11 @@ def create_merge_requests(repo, remote, local_branch):
             with timing("create_mrs"):
                 mr.create()
             new_mrs.append(mr)
+    
+    refs_to_push = ["{}:refs/heads/{}".format(
+        c.commit.hexsha, c.source_branch) for c in commits_data]
+    with timing("push"):
+        remote.push(refspec=refs_to_push, force=True)        
 
     if len(updated_mrs) == 0 and len(new_mrs) == 0:
         print()
