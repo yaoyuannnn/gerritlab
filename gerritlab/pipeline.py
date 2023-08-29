@@ -52,30 +52,36 @@ def generate_pipeline_status_str(status):
     return "?status=" + "&status=".join(status)
 
 
-def get_pipelines_by_sha(sha, status=None):
-    """Returns a list of `Pipeline`s associated with the given `sha`."""
+def get_pipelines(status):
+    """
+    Returns a list of `Pipeline`s associated with the project.
+
+    Note: `status` must be a list of status strings.
+    """
     status_str = generate_pipeline_status_str(status)
     r = global_vars.session.get(
         global_vars.pipelines_url + status_str)
-    pipelines = []
-    for pipeline in r.json():
-        if pipeline["sha"] == sha:
-            pipelines.append(Pipeline(json_data=pipeline))
-    return pipelines
+    r.raise_for_status()
+    return [Pipeline(json_data=pipeline) for pipeline in r.json()]
 
 
-def get_pipelines_by_change_id(change_id, repo, status=None):
-    """Returns a list of `Pipeline`s associated with the given `change_id`."""
-    status_str = generate_pipeline_status_str(status)
-    r = global_vars.session.get(
-        global_vars.pipelines_url + status_str)
-    pipelines = []
-    for pipeline in r.json():
+def get_pipelines_by_change_id(repo) -> dict:
+    """
+    Returns a dictionary of runnning `Pipeline`s associated with the project.
+
+    The key of the dictionary is a Change-Id string and the value is a list of
+    running `Pipeline`s associated with that Change-Id.
+    """
+    
+    res = {}
+
+    for pipeline in get_pipelines([PipelineStatus.RUNNING]):
         try:
-            remote_change_id = utils.get_change_id(
-                repo.git.log(pipeline["sha"], n=1), silent=True)
+            change_id = utils.get_change_id(
+                repo.git.log(pipeline.sha, n=1), silent=True)
         except:
             continue
-        if remote_change_id is not None and remote_change_id == change_id:
-            pipelines.append(Pipeline(json_data=pipeline))
-    return pipelines
+        if change_id:
+            res.setdefault(change_id, []).append(pipeline)
+
+    return res

@@ -59,6 +59,24 @@ def merge_merge_requests(remote, local_branch):
         mr.print_info(verbose=True)
     print("To {}".format(remote.url))
 
+
+def cancel_prev_pipelines(repo, commits):
+    """
+    Cancels previous pipelines associated with the same Change-Ids as
+    those of `commits`.
+    """
+    # Get the running pipelines.
+    pipelines = pipeline.get_pipelines_by_change_id(repo)
+
+    for commit in commits:
+        change_id = utils.get_change_id(commit.message)
+        for p in pipelines.get(change_id, []):
+            # Don't cancel myself.
+            if p.sha == commit.hexsha:
+                continue
+            # Cancel this previous pipeline.
+            p.cancel()
+
 class Commit:
     def __init__(self, commit, source_branch, target_branch):
         self.commit = commit
@@ -79,19 +97,6 @@ def timing(timer_name):
     
 def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
-
-    def cancel_prev_pipelines(commit):
-        """Cancels previous pipelines associated with the same Change-Id."""
-        # Get the running pipelines.
-        change_id = utils.get_change_id(commit.message)
-        for p in pipeline.get_pipelines_by_change_id(
-                change_id=change_id, repo=repo,
-                status=[PipelineStatus.RUNNING]):
-            # Don't cancel myself.
-            if p.sha == commit.hexsha:
-                continue
-            # Cancel this previous pipeline.
-            p.cancel()
 
     # Sync up remote branches.
     with timing("fetch"):
@@ -144,7 +149,8 @@ def create_merge_requests(repo, remote, local_branch):
 
     new_mrs = []
     updated_mrs = []
-    
+    commits_to_pipeline_cancel = []
+
     for c in commits_data:
         title, desp = utils.get_msg_title_description(c.commit.message)
         
@@ -157,8 +163,7 @@ def create_merge_requests(repo, remote, local_branch):
                         source_branch=c.source_branch,
                         target_branch=c.target_branch, title=title,
                         description=desp)
-                with timing("Cancelling previous pipelines"):
-                    cancel_prev_pipelines(c.commit)
+                commits_to_pipeline_cancel.append(c.commit)
                 updated_mrs.append(mr)
         else:
             mr = merge_request.MergeRequest(
@@ -168,6 +173,9 @@ def create_merge_requests(repo, remote, local_branch):
                 mr.create()
             new_mrs.append(mr)
     
+    with timing("Cancelling previous pipelines"):
+        cancel_prev_pipelines(repo, commits_to_pipeline_cancel)
+
     refs_to_push = ["{}:refs/heads/{}".format(
         c.commit.hexsha, c.source_branch) for c in commits_data]
     with timing("push"):
