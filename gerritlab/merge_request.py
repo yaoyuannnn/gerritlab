@@ -168,14 +168,13 @@ class MergeRequest:
         r.raise_for_status()
         self._set_data(r.json())
         
-    def wait_until_stable(self):
+    def wait_until_stable(self, commit):
         """
-        Poll GitLab until the changes_count field has a value of "1".
-        Other values indicate that GitLab hasn't reacted to a push yet.
+        Poll the MR until the "sha" field matches that of `commit`.
         """
         while True:
             self.refresh()
-            if self._changes_count == "1":
+            if self._sha == commit.commit.hexsha:
                 return
             time.sleep(0.500)
 
