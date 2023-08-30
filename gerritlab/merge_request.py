@@ -86,7 +86,7 @@ class MergeRequest:
 
     def update(
             self, source_branch=None, target_branch=None, title=None,
-            description=None, state_event=None):
+            description=None):
         if source_branch is not None:
             self._source_branch = source_branch
         if target_branch is not None:
@@ -101,8 +101,6 @@ class MergeRequest:
             "title": self._title,
             "description": self._description,
         }
-        if state_event:
-            data["state_event"] = state_event
         r = global_vars.session.put(
             "{}/{}".format(global_vars.mr_url, self._iid),
             data=data)
@@ -136,15 +134,6 @@ class MergeRequest:
         r.raise_for_status()
         if delete_source_branch:
             self._remote.push(refspec=(":{}".format(self._source_branch)))
-
-    def reload(self):
-        """Reloads the MR by closing and reopening it.
-
-        This can be used to refresh MR status.  Related GitLab issue:
-        https://gitlab.com/gitlab-org/gitlab-foss/-/issues/19026#note_36401573
-        """
-        self.update(state_event="close")
-        self.update(state_event="reopen")
 
     def get_commits(self):
         """Returns a list of commits in this merge request."""

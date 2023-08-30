@@ -78,27 +78,6 @@ class MergeRequestTest(unittest.TestCase):
             self.assertTrue(mr != None)
             self.assertEqual(mr.target_branch, target_branch)
             mr_commits = mr.get_commits()
-            if len(mr_commits) != 1:
-                # GitLab can run into this bug (shown below in the example) when
-                # we change an MR's target branch.
-                #
-                # Example:
-                #   main:  commit_a -> commit_b
-                #     |                   |
-                #     v                    \
-                #   branch0 (MR0):          `-> commit_c
-                #     |                            |
-                #     V                             \
-                #   branch1 (MR1):                   `-> commit_d
-                #
-                # In the example, MR1 is stacked on MR0, and MR0 and MR1 should
-                # only show commit_c and commit_d, respectively. A GitLab glitch
-                # can result in commit_c and commit_d both show up in MR1.
-                # Waiting doesn't seem to fix this. Here we reload MR1 to make
-                # commit_c disappear. Related GitLab issue:
-                # https://gitlab.com/gitlab-org/gitlab-foss/-/issues/19026#note_36401573
-                mr.reload()
-                mr_commits = mr.get_commits()
             self.assertEqual(len(mr_commits), 1)
             self.assertEqual(mr_commits[0]["id"], commit.hexsha)
             return mr
