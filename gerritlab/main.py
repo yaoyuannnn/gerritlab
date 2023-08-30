@@ -173,13 +173,13 @@ def create_merge_requests(repo, remote, local_branch):
                 mr.create()
             new_mrs.append(mr)
     
-    with timing("Cancelling previous pipelines"):
-        cancel_prev_pipelines(repo, commits_to_pipeline_cancel)
-
     refs_to_push = ["{}:refs/heads/{}".format(
         c.commit.hexsha, c.source_branch) for c in commits_data]
     with timing("push"):
         remote.push(refspec=refs_to_push, force=True)        
+
+    with timing("Cancelling previous pipelines"):
+        cancel_prev_pipelines(repo, commits_to_pipeline_cancel)
 
     with timing("stabilize"):
         for mr in new_mrs+updated_mrs:
