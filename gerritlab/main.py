@@ -82,6 +82,7 @@ class Commit:
         self.commit = commit
         self.source_branch = source_branch
         self.target_branch = target_branch
+        self.mr = None
 
 # key is timer name, value is seconds counted
 timers = {}
@@ -156,6 +157,7 @@ def create_merge_requests(repo, remote, local_branch):
         
         mr = current_mrs_by_source_branch.get(c.source_branch)
         if mr:
+            c.mr = mr
             # Update the MR if needed
             if mr.needs_update(c):
                 with timing("update_mrs"):
@@ -169,6 +171,7 @@ def create_merge_requests(repo, remote, local_branch):
             mr = merge_request.MergeRequest(
                 remote=remote, source_branch=c.source_branch,
                 target_branch=c.target_branch, title=title, description=desp)
+            c.mr = mr
             with timing("create_mrs"):
                 mr.create()
             new_mrs.append(mr)
@@ -182,8 +185,8 @@ def create_merge_requests(repo, remote, local_branch):
         remote.push(refspec=refs_to_push, force=True)        
 
     with timing("stabilize"):
-        for mr in new_mrs+updated_mrs:
-            mr.wait_until_stable()
+        for c in commits_data:
+            c.mr.wait_until_stable(c)
 
     if len(updated_mrs) == 0 and len(new_mrs) == 0:
         print()
