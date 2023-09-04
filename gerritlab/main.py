@@ -6,7 +6,7 @@ import argparse
 from contextlib import contextmanager
 from git.repo import Repo
 
-from gerritlab import utils, global_vars, merge_request, pipeline
+from gerritlab import utils, git_credentials, global_vars, merge_request, pipeline
 from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
 from gerritlab.pipeline import PipelineStatus
 
@@ -286,6 +286,9 @@ def main():
     # Merge the MRs if they become mergeable.
     if args.merge:
         merge_merge_requests(remote, local_branch)
-        sys.exit(0)
+    else:
+        create_merge_requests(repo, remote, local_branch)
 
-    create_merge_requests(repo, remote, local_branch)
+    # Since we made it this far, we can assume that if the user is using a
+    # git credential helper, they want to store the credentials.
+    git_credentials.instance(global_vars.host_netloc).save()

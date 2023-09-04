@@ -30,33 +30,76 @@ $ pip install .
 
 ## Set up a .gitreview.
 
-Before using this tool, you need to create a .gitreview file in the root
-directory of your project. It needs to contain info like GitLab project ID and
-a private token that can be used to access the GitLab repo and the GitLab API.
-Current optional configuration flags include `target_branch` and
-`remove_source_branch`. `target_branch` represents the target branch that you
-want the MRs to eventually merge into. By default, `target_branch` is `master`.
-`remove_source_branch` can be used to delete the source branch of an MR once
-it's merged. By default, this is set to `True`.  The following shows an example
-of `.gitreview`:
+Before using this tool, you need to create a `.gitreview` file in the root
+directory of your project.
+
+It must contain:
+
+* `host`: The base URL of the GitLab server.
+* `project_id`: The ID of your project on your GitLab host.
+
+It may optionally contain:
+
+* `target_branch`: the target branch that you want the MRs to eventually merge into. By default, `target_branch` is `master`.
+* `remove_source_branch`: Boolean value, indicating whether the source branch of an MR should be deleted once it's merged. By default, `remove_source_branch` is `True`.
+
+Example `.gitreview`:
 
 ```ini
 [origin]
 host=https://gitlab.example.com
 project_id=1234
-private_token=[your-private-token]
 target_branch=master
 remove_source_branch=True
 ```
 
+## Set up a private token.
 
-The `private_token` can alternatively also be stored in your Git config:
+GerritLab requires a GitLab private token with api access.
+
+You have the option to store it either in:
+
+1. `git config`
+2. [git credential helper](https://git-scm.com/book/en/v2/Git-Tools-Credential-Storage)
+
+### Option 1: Store in git config
+
+To store in your git config:
 
 ```console
 $ git config --global gerritlab.private-token "[your-private-token]"
 # OR
 $ git config --local gerritlab.private-token "[your-private-token]"
 ```
+
+### Option 2: Use a git credential store
+
+A more secure option is to use a **git credential store**.
+
+If you've configured a `credential.helper` in git, then GerritLab will prompt
+you for a username and token and attempt to store it in your credential helper.
+
+This is all that's needed for helpers supporting the `store` action (e.g.,
+osxkeychain, libsecret).
+
+But if you're using a credential store which does NOT support the `store`
+action (e.g., pass-git-helper), then you'll need to manually store your GitLab
+token where GerritLab expects to find it.
+
+GerritLab expects to find credentials stored as the `host` from your `.gitreview`.
+
+For example, if your host is `gitlab.com`, GerritLab will look for your GitLab
+username and token in your credential helper under
+`https://gitlab.com/`.
+
+Git credential helpers are available for nearly every operating system and
+password store.
+
+For more details, see:
+* [git-scm's list of credential helpers](https://git-scm.com/doc/credential-helpers)
+* Microsoft's [Git Credential Manager](https://github.com/git-ecosystem/git-credential-manager)
+
+⚠️ **Note**: The [git credential store](https://git-scm.com/docs/git-credential-store) is not recommended because it stores passwords in plaintext.
 
 ## Install Change-Id commit-msg hook.
 We need a commit-msg hook that will add a Change-Id to every commit. This
