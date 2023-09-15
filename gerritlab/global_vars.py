@@ -52,7 +52,9 @@ def load_config(remote, repo):
     if "target_branch" in gitreview_config:
         global_target_branch = gitreview_config["target_branch"]
     if "remove_source_branch" in gitreview_config:
-        remove_source_branch = gitreview_config.getboolean("remove_source_branch")
+        remove_source_branch = gitreview_config.getboolean(
+            "remove_source_branch"
+        )
     mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
     pipeline_url = "{}/api/v4/projects/{}/pipeline".format(host, project_id)
     pipelines_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
@@ -60,9 +62,11 @@ def load_config(remote, repo):
     session.headers.update({"PRIVATE-TOKEN": private_token})
 
 
-def _get_private_token(host: str,
-                       git_config: GitConfigParser,
-                       gitreview_config: configparser.SectionProxy):
+def _get_private_token(
+    host: str,
+    git_config: GitConfigParser,
+    gitreview_config: configparser.SectionProxy,
+):
     """
     Get the private token from one of several sources in the following order of
     preference:
@@ -91,6 +95,8 @@ def _get_private_token(host: str,
 
     # DEPRECATED: Try to get the private token from .gitreview file.
     if "private_token" in gitreview_config:
-        raise RuntimeError("Using private_token from .gitreview file is deprecated.")
+        raise RuntimeError(
+            "Using private_token from .gitreview file is deprecated."
+        )
 
     raise SystemExit(f"Unable to find private token for {host}")

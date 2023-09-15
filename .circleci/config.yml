@@ -13,7 +13,7 @@ jobs:
           pkg-manager: pip
       - python/install-packages:
           pip-dependency-file: test-requirements.txt
-          pkg-manager: pip          
+          pkg-manager: pip
       - add_ssh_keys:
           fingerprints:
             - 6b:31:14:0e:9b:c6:5e:0c:8e:1e:88:7b:06:e2:4e:ee
@@ -22,10 +22,14 @@ jobs:
           command: |
             ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
             git submodule update --init --recursive
-      - run: mkdir -p test-results
+      - run:
+          name: Code format and style checks
+          command: .circleci/run_format_style_checks.py
       - run:
           name: Run tests
-          command: pytest --junitxml=test-results/junit.xml -o junit_family=legacy
+          command: |
+            mkdir -p test-results
+            pytest --junitxml=test-results/junit.xml -o junit_family=legacy
       - store_test_results:
           path: test-results
 
