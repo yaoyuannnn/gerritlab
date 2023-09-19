@@ -6,15 +6,15 @@ change_id_re = r"Change-Id: (.+?)(\s|$)"
 
 
 class Bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
 
 
 def msg_with_color(msg, color):
@@ -59,7 +59,9 @@ def get_change_id(msg, silent=False):
     if m:
         return m.group(1)
     elif not silent:
-        raise ValueError("Didn't find the Change-Id in the commit message!\n{}".format(msg))
+        raise ValueError(
+            "Didn't find the Change-Id in the commit message!\n{}".format(msg)
+        )
     else:
         return None
 

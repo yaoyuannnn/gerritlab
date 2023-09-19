@@ -6,9 +6,14 @@ import argparse
 from contextlib import contextmanager
 from git.repo import Repo
 
-from gerritlab import utils, git_credentials, global_vars, merge_request, pipeline
+from gerritlab import (
+    utils,
+    git_credentials,
+    global_vars,
+    merge_request,
+    pipeline,
+)
 from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
-from gerritlab.pipeline import PipelineStatus
 
 
 def merge_merge_requests(remote, local_branch):
@@ -25,7 +30,9 @@ def merge_merge_requests(remote, local_branch):
     if global_vars.global_target_branch not in [mr.target_branch for mr in mrs]:
         warn(
             "Not a single MR interested in merging into {}?".format(
-                global_vars.global_target_branch))
+                global_vars.global_target_branch
+            )
+        )
         return
 
     mr_chain = merge_request.get_merge_request_chain(mrs)
@@ -42,14 +49,15 @@ def merge_merge_requests(remote, local_branch):
     if len(mergeables) == 0:
         warn(
             "No MRs can be merged into {} as top of the MR chain is not "
-            "mergeable.".format(global_vars.global_target_branch))
+            "mergeable.".format(global_vars.global_target_branch)
+        )
         return
 
     # We must merge MRs from the oldest. And before merging an MR, we
     # must change its target_branch to the main branch.
     for mr in mergeables:
         mr.update(target_branch=global_vars.global_target_branch)
-        #FIXME: Poll the merge req status and waiting until
+        # FIXME: Poll the merge req status and waiting until
         # merge_status is no longer "checking".
         mr.merge()
 
@@ -77,6 +85,7 @@ def cancel_prev_pipelines(repo, commits):
             # Cancel this previous pipeline.
             p.cancel()
 
+
 class Commit:
     def __init__(self, commit, source_branch, target_branch):
         self.commit = commit
@@ -84,8 +93,10 @@ class Commit:
         self.target_branch = target_branch
         self.mr = None
 
+
 # key is timer name, value is seconds counted
 timers = {}
+
 
 @contextmanager
 def timing(timer_name):
@@ -95,12 +106,13 @@ def timing(timer_name):
     finally:
         elapsed = time.time() - start
         timers[timer_name] = timers.get(timer_name, 0) + elapsed
-    
+
+
 def generate_augmented_mr_description(commits_data, commit):
     if len(commits_data) <= 1:
         # No augmentation if only pushing a single commit
         return utils.get_msg_title_description(commit.commit.message)
-    
+
     target_branch = commits_data[0].target_branch
 
     extra = ["Related MRs:"]
@@ -114,7 +126,8 @@ def generate_augmented_mr_description(commits_data, commit):
 
     title, desc = utils.get_msg_title_description(commit.commit.message)
     return (title, desc + "\n" + "\n".join(extra) + "\n")
-    
+
+
 def create_merge_requests(repo, remote, local_branch):
     """Creates new merge requests on remote."""
 
@@ -126,7 +139,10 @@ def create_merge_requests(repo, remote, local_branch):
     commits = list(
         repo.iter_commits(
             "{}/{}..{}".format(
-                remote.name, global_vars.global_target_branch, local_branch)))
+                remote.name, global_vars.global_target_branch, local_branch
+            )
+        )
+    )
     if len(commits) == 0:
         warn("No local commits ahead of remote target branch.")
         sys.exit(0)
@@ -135,10 +151,11 @@ def create_merge_requests(repo, remote, local_branch):
         title, _ = utils.get_msg_title_description(c.message)
         print("* {} {}".format(c.hexsha[:8], title))
     if not global_vars.ci_mode:
-        do_review_prompt = (
-            "Proceed? ({}/n) ".format(msg_with_color("[y]", Bcolors.OKCYAN)))
+        do_review_prompt = "Proceed? ({}/n) ".format(
+            msg_with_color("[y]", Bcolors.OKCYAN)
+        )
         do_review = input("\n{}".format(do_review_prompt))
-        while do_review not in ['', "y", "n"]:
+        while do_review not in ["", "y", "n"]:
             do_review = input("Unknown input. {}".format(do_review_prompt))
         if do_review == "n":
             return
@@ -146,25 +163,28 @@ def create_merge_requests(repo, remote, local_branch):
     commits_data = []
     for idx, c in enumerate(commits):
         source_branch = utils.get_remote_branch_name(
-            local_branch, utils.get_change_id(c.message))
+            local_branch, utils.get_change_id(c.message)
+        )
         if idx == 0:
             target_branch = global_vars.global_target_branch
         else:
             target_branch = utils.get_remote_branch_name(
-                local_branch, utils.get_change_id(commits[idx - 1].message))
+                local_branch, utils.get_change_id(commits[idx - 1].message)
+            )
         commits_data.append(Commit(c, source_branch, target_branch))
 
     # Workflow:
     # 1) Create or update MRs.
     # 2) Single push with all branch updates.
     # This order works best with GitLab.  If the order is swapped GitLab
-    # can become confused (xref https://gitlab.com/gitlab-org/gitlab-foss/-/issues/368).
+    # can become confused (xref
+    # https://gitlab.com/gitlab-org/gitlab-foss/-/issues/368).
 
     # Get existing MRs created off of the given branch.
     with timing("get_mrs"):
         current_mrs_by_source_branch = {
-            mr.source_branch: mr for mr in merge_request.get_all_merge_requests(
-                remote, local_branch)
+            mr.source_branch: mr
+            for mr in merge_request.get_all_merge_requests(remote, local_branch)
         }
 
     new_mrs = []
@@ -179,13 +199,17 @@ def create_merge_requests(repo, remote, local_branch):
         else:
             title, desp = utils.get_msg_title_description(c.commit.message)
             mr = merge_request.MergeRequest(
-                remote=remote, source_branch=c.source_branch,
-                target_branch=c.target_branch, title=title, description=desp)
+                remote=remote,
+                source_branch=c.source_branch,
+                target_branch=c.target_branch,
+                title=title,
+                description=desp,
+            )
             c.mr = mr
             with timing("create_mrs"):
                 mr.create()
             new_mrs.append(mr)
-    
+
     # At this point we have one MR for each commit.
     # title/desc/target_branch may be out-of-date for preexisting MRs.
     # Augment the MR descriptions to include a list of related MRs.
@@ -202,10 +226,12 @@ def create_merge_requests(repo, remote, local_branch):
                 commits_to_pipeline_cancel.append(c.commit)
 
     # Push commits to Change-Id-named branches
-    refs_to_push = ["{}:refs/heads/{}".format(
-        c.commit.hexsha, c.source_branch) for c in commits_data]
+    refs_to_push = [
+        "{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch)
+        for c in commits_data
+    ]
     with timing("push"):
-        remote.push(refspec=refs_to_push, force=True)        
+        remote.push(refspec=refs_to_push, force=True)
 
     with timing("Cancelling previous pipelines"):
         cancel_prev_pipelines(repo, commits_to_pipeline_cancel)
@@ -246,27 +272,46 @@ def ensure_commitmsg_hook(git_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Commandline flags for using git-review.")
+        description="Commandline flags for using git-review."
+    )
     parser.add_argument(
-        "remote", type=str, nargs="?", default="origin",
-        help="The remote to push the reviews.")
+        "remote",
+        type=str,
+        nargs="?",
+        default="origin",
+        help="The remote to push the reviews.",
+    )
     parser.add_argument(
-        "local_branch", type=str, nargs="?",
-        help="The local branch to be reviewed.")
+        "local_branch",
+        type=str,
+        nargs="?",
+        help="The local branch to be reviewed.",
+    )
     parser.add_argument(
-        "--merge", "-m", action="store_true", default=False,
-        help="Merge the MRs if they are approved.")
+        "--merge",
+        "-m",
+        action="store_true",
+        default=False,
+        help="Merge the MRs if they are approved.",
+    )
     parser.add_argument(
-        "--setup", "-s", action="store_true", default=False,
-        help="Just run the repo setup commands but don't submit anything.")
+        "--setup",
+        "-s",
+        action="store_true",
+        default=False,
+        help="Just run the repo setup commands but don't submit anything.",
+    )
     parser.add_argument(
-        "--yes", action="store_true", default=False,
-        help="Do not prompt for confirmation.")
+        "--yes",
+        action="store_true",
+        default=False,
+        help="Do not prompt for confirmation.",
+    )
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
     ensure_commitmsg_hook(repo.git_dir)
-    
+
     global_vars.load_config(args.remote, repo)
 
     if args.setup:
@@ -277,7 +322,8 @@ def main():
     if args.local_branch is None:
         if repo.head.is_detached:
             raise Exception(
-                "HEAD is detached. Are you in the process of a rebase?")
+                "HEAD is detached. Are you in the process of a rebase?"
+            )
         local_branch = repo.active_branch.name
 
     if args.yes:

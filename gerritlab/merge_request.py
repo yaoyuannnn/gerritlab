@@ -23,8 +23,14 @@ class MergeRequest:
     _needs_save: bool
 
     def __init__(
-            self, remote, source_branch=None, target_branch=None, title=None,
-            description=None, json_data=None):
+        self,
+        remote,
+        source_branch=None,
+        target_branch=None,
+        title=None,
+        description=None,
+        json_data=None,
+    ):
         self._remote = remote
         self._source_branch = source_branch
         self._target_branch = target_branch
@@ -60,7 +66,8 @@ class MergeRequest:
         print("* {} {}".format(self._web_url, self._title))
         if verbose:
             print(
-                "    {} -> {}".format(self._source_branch, self._target_branch))
+                "    {} -> {}".format(self._source_branch, self._target_branch)
+            )
 
     def create(self):
         data = {
@@ -71,24 +78,26 @@ class MergeRequest:
             "remove_source_branch": global_vars.remove_source_branch,
         }
         try:
-            r = global_vars.session.post(
-                global_vars.mr_url, data=data)
+            r = global_vars.session.post(global_vars.mr_url, data=data)
             data = r.json()
             r.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise SystemExit("Error creating merge request for "
-                             "{} → {}\n{}\n{}".format(
-                self._source_branch,
-                self._target_branch,
-                e,
-                data
-            ))
+            raise SystemExit(
+                "Error creating merge request for "
+                "{} → {}\n{}\n{}".format(
+                    self._source_branch, self._target_branch, e, data
+                )
+            )
         self._iid = data["iid"]
         self._web_url = data["web_url"]
 
     def update(
-            self, source_branch=None, target_branch=None, title=None,
-            description=None):
+        self,
+        source_branch=None,
+        target_branch=None,
+        title=None,
+        description=None,
+    ):
         if source_branch is not None:
             self._source_branch = source_branch
         if target_branch is not None:
@@ -104,8 +113,8 @@ class MergeRequest:
             "description": self._description,
         }
         r = global_vars.session.put(
-            "{}/{}".format(global_vars.mr_url, self._iid),
-            data=data)
+            "{}/{}".format(global_vars.mr_url, self._iid), data=data
+        )
         r.raise_for_status()
         data = r.json()
         self._iid = data["iid"]
@@ -114,7 +123,8 @@ class MergeRequest:
     def rebase(self):
         """Rebases source_branch of the MR against its target_branch."""
         r = global_vars.session.put(
-            "{}/{}/rebase".format(global_vars.mr_url, self._iid))
+            "{}/{}/rebase".format(global_vars.mr_url, self._iid)
+        )
         r.raise_for_status()
 
     def merge(self):
@@ -132,7 +142,8 @@ class MergeRequest:
         if self._iid is None:
             raise ValueError("Must set iid before deleting an MR!")
         r = global_vars.session.delete(
-            "{}/{}".format(global_vars.mr_url, self._iid))
+            "{}/{}".format(global_vars.mr_url, self._iid)
+        )
         r.raise_for_status()
         if delete_source_branch:
             self._remote.push(refspec=(":{}".format(self._source_branch)))
@@ -140,25 +151,31 @@ class MergeRequest:
     def get_commits(self):
         """Returns a list of commits in this merge request."""
         r = global_vars.session.get(
-            "{}/{}/commits".format(global_vars.mr_url, self._iid))
+            "{}/{}/commits".format(global_vars.mr_url, self._iid)
+        )
         r.raise_for_status()
         return r.json()
 
     def needs_update(self, commit) -> bool:
         title, desc = utils.get_msg_title_description(commit.commit.message)
-        return (self._source_branch != commit.source_branch or 
-                self._target_branch != commit.target_branch or 
-                self._title != title or 
-                self._description != desc.strip())
+        return (
+            self._source_branch != commit.source_branch
+            or self._target_branch != commit.target_branch
+            or self._title != title
+            or self._description != desc.strip()
+        )
 
     def refresh(self):
         """
-        Update's this object's data using the latest info available from the server.
+        Update's this object's data using the latest info available from the
+        server.
         """
-        r = global_vars.session.get("{}/{}".format(global_vars.mr_url, self._iid))
+        r = global_vars.session.get(
+            "{}/{}".format(global_vars.mr_url, self._iid)
+        )
         r.raise_for_status()
         self._set_data(r.json())
-        
+
     def wait_until_stable(self, commit):
         """
         Poll the MR until the "sha" field matches that of `commit`.
@@ -173,20 +190,20 @@ class MergeRequest:
         if self._target_branch != target_branch:
             self._target_branch = target_branch
             self._needs_save = True
-            
+
     def set_title(self, title):
         if self._title != title:
             self._title = title
             self._needs_save = True
-            
+
     def set_desc(self, desc):
         if self._description.strip() != desc.strip():
             self._description = desc
             self._needs_save = True
-            
+
     def save(self) -> bool:
         saved = False
-        
+
         if self._needs_save:
             self.update()
             saved = True
@@ -202,10 +219,15 @@ def _get_open_merge_requests():
     results = []
     while True:
         try:
-            next_page = global_vars.session.get("{}?state=opened&page={}&per_page={}&scope=created_by_me".format(
-                global_vars.mr_url, page, per_page))
+            next_page = global_vars.session.get(
+                "{}?state=opened&page={}&per_page={}&"
+                "scope=created_by_me".format(global_vars.mr_url, page, per_page)
+            )
             next_page.raise_for_status()
-        except (requests.exceptions.HTTPError, requests.exceptions.InvalidHeader) as e:
+        except (
+            requests.exceptions.HTTPError,
+            requests.exceptions.InvalidHeader,
+        ) as e:
             print("Error gathering merge requests, message: {}".format(e))
             sys.exit(1)
 

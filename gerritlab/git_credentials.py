@@ -10,10 +10,10 @@ import subprocess
 from typing import Dict, Optional, Union
 from urllib.parse import urlsplit
 
-INSTANCES: Dict[str, 'GitCredentialStore'] = {}
+INSTANCES: Dict[str, "GitCredentialStore"] = {}
 
 
-def instance(host: str) -> 'GitCredentialStore':
+def instance(host: str) -> "GitCredentialStore":
     """
     Builds single GitCredentialStore per host
 
@@ -28,6 +28,7 @@ class GitCredentialStore:
 
     :host: is the full URL of the gitlab instance
     """
+
     def __init__(self, host: str) -> None:
         # TODO: use host + repo path to support per-repo tokens
         url = urlsplit(host)
@@ -71,7 +72,7 @@ class GitCredentialStore:
                 ["git", "credential", "fill"],
                 input=f"protocol={self._scheme}\nhost={self._host}\n\n",
                 text=True,
-                stdout=subprocess.PIPE
+                stdout=subprocess.PIPE,
             )
         except KeyboardInterrupt:
             return ""
@@ -105,5 +106,5 @@ class GitCredentialStore:
         return subprocess.run(
             ["git", "credential", "approve"],
             input=git_credential_fill_out,
-            text=True
+            text=True,
         ).returncode
