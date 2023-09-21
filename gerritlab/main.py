@@ -337,4 +337,5 @@ def main():
 
     # Since we made it this far, we can assume that if the user is using a
     # git credential helper, they want to store the credentials.
-    git_credentials.instance(global_vars.host).save()
+    if git_credentials.INSTANCES:
+        git_credentials.instance(global_vars.host).save()
