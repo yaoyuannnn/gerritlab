@@ -208,6 +208,7 @@ def create_merge_requests(repo, remote, local_branch):
             c.mr = mr
             with timing("create_mrs"):
                 mr.create()
+                mr._sha = None
             new_mrs.append(mr)
 
     # At this point we have one MR for each commit.
@@ -221,7 +222,7 @@ def create_merge_requests(repo, remote, local_branch):
         mr.set_title(title)
         mr.set_desc(desc)
         with timing("update_mrs"):
-            if mr.save() and mr not in new_mrs:
+            if (mr.save() or mr._sha != c.commit.hexsha) and mr not in new_mrs:
                 updated_mrs.append(mr)
                 commits_to_pipeline_cancel.append(c.commit)
 
