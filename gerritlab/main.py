@@ -125,7 +125,7 @@ def generate_augmented_mr_description(commits_data, commit):
     extra.append(f"* _{target_branch}_")
 
     title, desc = utils.get_msg_title_description(commit.commit.message)
-    return (title, desc + "\n" + "\n".join(extra) + "\n")
+    return (title, desc + "\n---\n".join(extra) + "\n")
 
 
 def create_merge_requests(repo, remote, local_branch):
