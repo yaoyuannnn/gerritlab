@@ -67,7 +67,12 @@ def get_change_id(msg, silent=False):
 
 
 def get_remote_branch_name(local_branch, change_id):
-    return "{}-{}".format(local_branch, change_id[1:5])
+    branch_parts = local_branch.split("-")
+    change_id_fragment = change_id[1:5]
+    if branch_parts[-1] == change_id_fragment:
+        # Local branch is already in format {branch-change_id_fragment}
+        return local_branch
+    return "{}-{}".format(local_branch, change_id_fragment)
 
 
 def is_remote_stale(commits, remote_commits):
