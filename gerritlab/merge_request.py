@@ -37,7 +37,7 @@ class MergeRequest:
         self._title = title
         self._description = description
         self._iid = None
-        self._web_url = None
+        self._web_url = "(new)"
         self._mergeable = False
         self._needs_save = False
 

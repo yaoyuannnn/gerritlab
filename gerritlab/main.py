@@ -187,6 +187,8 @@ def create_merge_requests(repo, remote, local_branch):
             for mr in merge_request.get_all_merge_requests(remote, local_branch)
         }
 
+    proposed_new_mrs = []
+    proposed_updated_mrs = []
     new_mrs = []
     updated_mrs = []
     commits_to_pipeline_cancel = []
@@ -205,11 +207,8 @@ def create_merge_requests(repo, remote, local_branch):
                 title=title,
                 description=desp,
             )
+            proposed_new_mrs.append(mr)
             c.mr = mr
-            with timing("create_mrs"):
-                mr.create()
-                mr._sha = None
-            new_mrs.append(mr)
 
     # At this point we have one MR for each commit.
     # title/desc/target_branch may be out-of-date for preexisting MRs.
@@ -217,14 +216,61 @@ def create_merge_requests(repo, remote, local_branch):
     for c in commits_data:
         title, desc = generate_augmented_mr_description(commits_data, c)
         mr = c.mr
-
         mr.set_target_branch(c.target_branch)
         mr.set_title(title)
         mr.set_desc(desc)
-        with timing("update_mrs"):
-            if (mr.save() or mr._sha != c.commit.hexsha) and mr not in new_mrs:
-                updated_mrs.append(mr)
-                commits_to_pipeline_cancel.append(c.commit)
+        if mr not in proposed_new_mrs:
+            proposed_updated_mrs.append(mr)
+
+    if len(proposed_updated_mrs) == 0 and len(proposed_new_mrs) == 0:
+        print()
+        warn("No updated/new MRs.\n")
+        return
+    print_with_color("\nProposed MRs:\n", Bcolors.HEADER)
+    if len(proposed_updated_mrs) > 0:
+        print_with_color("MRs to update", Bcolors.OKGREEN)
+        for mr in proposed_updated_mrs:
+            mr.print_info(verbose=True)
+        print()
+    else:
+        print_with_color("No existing MRs will be updated", Bcolors.OKCYAN)
+    if len(proposed_new_mrs) > 0:
+        print_with_color("MRs to create", Bcolors.OKGREEN)
+        for mr in proposed_new_mrs:
+            mr.print_info(verbose=True)
+        print()
+    else:
+        print_with_color("No new MRs will be created", Bcolors.OKCYAN)
+
+    if not global_vars.ci_mode:
+        do_review_prompt = "Proceed? ({}/n) ".format(
+            msg_with_color("[y]", Bcolors.OKCYAN)
+        )
+        do_review = input("\n{}".format(do_review_prompt))
+        while do_review not in ["", "y", "n"]:
+            do_review = input("Unknown input. {}".format(do_review_prompt))
+        if do_review == "n":
+            return
+
+    for mr in proposed_new_mrs:
+        with timing("create_mrs"):
+            mr.create()
+            mr._sha = None
+        new_mrs.append(mr)
+
+    if len(proposed_updated_mrs) > 0:
+        for c in commits_data:
+            title, desc = generate_augmented_mr_description(commits_data, c)
+            mr = c.mr
+            mr.set_target_branch(c.target_branch)
+            mr.set_title(title)
+            mr.set_desc(desc)
+            with timing("update_mrs"):
+                if (
+                    mr.save() or mr._sha != c.commit.hexsha
+                ) and mr not in new_mrs:
+                    updated_mrs.append(mr)
+                    commits_to_pipeline_cancel.append(c.commit)
 
     # Push commits to Change-Id-named branches
     refs_to_push = [
