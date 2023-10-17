@@ -208,7 +208,6 @@ def create_merge_requests(repo, remote, local_branch):
             c.mr = mr
             with timing("create_mrs"):
                 mr.create()
-                mr._sha = None
             new_mrs.append(mr)
 
     # At this point we have one MR for each commit.
