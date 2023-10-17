@@ -1,5 +1,6 @@
 """This file includes easy APIs to handle GitLab merge requests."""
 
+import re
 import sys
 from typing import Optional
 import time
@@ -19,7 +20,6 @@ class MergeRequest:
     _iid: Optional[str]
     _web_url: Optional[str]
     _detailed_merge_status: str
-    _local_branch: str
     _needs_save: bool
 
     def __init__(
@@ -38,7 +38,7 @@ class MergeRequest:
         self._description = description
         self._iid = None
         self._web_url = None
-        self._detailed_merge_status = "unknown"
+        self._detailed_merge_status = None
         self._needs_save = False
         self._sha = None
 
@@ -49,7 +49,9 @@ class MergeRequest:
             for attr in json_data:
                 setattr(self, "_{}".format(attr), json_data[attr])
 
-        self._local_branch = self._source_branch.rsplit("-", 1)[0]
+    @property
+    def merge_status(self):
+        return self._detailed_merge_status
 
     @property
     def mergeable(self):
@@ -62,6 +64,9 @@ class MergeRequest:
     @property
     def target_branch(self):
         return self._target_branch
+
+    def __str__(self):
+        return f"<{type(self).__name__} {self._web_url} @ {hex(id(self))}>"
 
     def print_info(self, verbose=False):
         print("* {} {}".format(self._web_url, self._title))
@@ -139,6 +144,55 @@ class MergeRequest:
             else:
                 time.sleep(2)
 
+    def approve(self, sha=None):
+        if self._iid is None:
+            raise ValueError("Must set iid before approving an MR!")
+        params = {}
+        if sha:
+            params["sha"] = sha
+        r = global_vars.session.post(
+            "{}/{}/approve".format(global_vars.mr_url, self._iid), params=params
+        )
+        r.raise_for_status()
+
+    def _wait_until_mergeable(self, timeout=40):
+        """
+        This method is intended for the test suite only.
+        """
+
+        self.refresh()
+
+        max_time = time.time() + timeout
+
+        while not self.mergeable:
+            if time.time() >= max_time:
+                raise TimeoutError(
+                    f"""
+{self} MR did not become mergeable within {timeout} seconds:
+Last detailed_merge_status was {self._detailed_merge_status}.
+"""
+                )
+            time.sleep(1)
+            self.refresh()
+
+    def close(self, delete_source_branch=False):
+        if self._iid is None:
+            raise ValueError("Must set iid before closing an MR!")
+        r = global_vars.session.put(
+            "{}/{}".format(global_vars.mr_url, self._iid),
+            params={"state_event": "close"},
+        )
+        r.raise_for_status()
+        if delete_source_branch:
+            # Delete the test target branch
+            resp = global_vars.session.delete(
+                "{}/{}".format(global_vars.branches_url, self._source_branch)
+            )
+            if resp.status_code == 404:
+                # It's okay if the branch doesn't exist.
+                return
+            resp.raise_for_status()
+
     def delete(self, delete_source_branch=False):
         if self._iid is None:
             raise ValueError("Must set iid before deleting an MR!")
@@ -147,7 +201,14 @@ class MergeRequest:
         )
         r.raise_for_status()
         if delete_source_branch:
-            self._remote.push(refspec=(":{}".format(self._source_branch)))
+            # Delete the test target branch
+            resp = global_vars.session.delete(
+                "{}/{}".format(global_vars.branches_url, self._source_branch)
+            )
+            if resp.status_code == 404:
+                # It's okay if the branch doesn't exist.
+                return
+            resp.raise_for_status()
 
     def get_commits(self):
         """Returns a list of commits in this merge request."""
@@ -240,6 +301,7 @@ def _get_open_merge_requests():
     return results
 
 
+# This is used by tests
 def get_merge_request(remote, branch):
     """Return a `MergeRequest` given branch name."""
     for r in _get_open_merge_requests():
@@ -250,16 +312,18 @@ def get_merge_request(remote, branch):
 
 
 def get_all_merge_requests(remote, branch):
-    """Return all `MergeRequest`s created off of `branch`."""
+    """Return all `MergeRequest`s destined for `branch`."""
     mrs = []
+    pattern = re.compile(re.escape(branch) + "-I[0-9a-f]{40}$")
+
     for r in _get_open_merge_requests():
         for json_data in r.json():
-            if json_data["source_branch"].startswith(branch):
+            if re.match(pattern, json_data["source_branch"]):
                 mrs.append(MergeRequest(remote=remote, json_data=json_data))
     return mrs
 
 
-def get_merge_request_chain(mrs):
+def get_merge_request_chain(mrs) -> "list[MergeRequest]":
     """Returns the MR dependency chain."""
     if len(mrs) == 0:
         return []

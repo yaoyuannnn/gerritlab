@@ -1,10 +1,10 @@
 import shutil
-import sys
 import time
 import os
 import argparse
 from contextlib import contextmanager
 from git.repo import Repo
+from git.remote import Remote
 
 from gerritlab import (
     utils,
@@ -16,29 +16,40 @@ from gerritlab import (
 from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
 
 
-def merge_merge_requests(remote, local_branch):
-    """Merges merge requests."""
+def merge_merge_requests(remote, final_branch) -> int:
+    """
+    Using local commits on the current branch, locate corresponding merge
+    requests in GitLab and merge them in the proper order.
+
+    Returns the number of MRs that were merged (for use by tests).
+    """
 
     print("\nMerging merge requests:")
 
-    # Get MRs created off of the given branch.
-    mrs = merge_request.get_all_merge_requests(remote, local_branch)
+    # Get MRs destined for final_branch
+    mrs = merge_request.get_all_merge_requests(remote, final_branch)
     if len(mrs) == 0:
-        print("No MRs found for this branch: {}".format(local_branch))
-        return
+        print("No MRs found for this branch: {}".format(final_branch))
+        return 0
 
-    if global_vars.global_target_branch not in [mr.target_branch for mr in mrs]:
+    # For each local commit, find the corresponding MR.
+    if final_branch not in [mr.target_branch for mr in mrs]:
         warn(
             "Not a single MR interested in merging into {}?".format(
-                global_vars.global_target_branch
+                final_branch
             )
         )
-        return
+        return 0
 
     mr_chain = merge_request.get_merge_request_chain(mrs)
     for mr in mr_chain:
+        # GitLab does not recheck mergeability status when lists of MRs
+        # are requested (as merge_request.get_all_merge_requests() does),
+        # so ensure we have up-to-date information merge status information
+        # by refreshing each MR individually.
+        mr.refresh()
         mr.print_info()
-        print("    [mergeable]: {}".format(mr.mergeable))
+        print("    [merge status]: {}".format(mr.merge_status))
 
     mergeables = []
     for mr in mr_chain:
@@ -51,12 +62,12 @@ def merge_merge_requests(remote, local_branch):
             "No MRs can be merged into {} as top of the MR chain is not "
             "mergeable.".format(global_vars.global_target_branch)
         )
-        return
+        return 0
 
     # We must merge MRs from the oldest. And before merging an MR, we
-    # must change its target_branch to the main branch.
+    # must change its target_branch to the final target branch.
     for mr in mergeables:
-        mr.update(target_branch=global_vars.global_target_branch)
+        mr.update(target_branch=final_branch)
         # FIXME: Poll the merge req status and waiting until
         # merge_status is no longer "checking".
         mr.merge()
@@ -66,6 +77,7 @@ def merge_merge_requests(remote, local_branch):
     for mr in mergeables:
         mr.print_info(verbose=True)
     print("To {}".format(remote.url))
+    return len(mergeables)
 
 
 def cancel_prev_pipelines(repo, commits):
@@ -128,26 +140,57 @@ def generate_augmented_mr_description(commits_data, commit):
     return (title, desc + "\n---\n" + "\n".join(extra) + "\n")
 
 
-def create_merge_requests(repo, remote, local_branch):
-    """Creates new merge requests on remote."""
-
-    # Sync up remote branches.
-    with timing("fetch"):
-        remote.fetch(prune=True)
-
+def get_commits_data(
+    repo: Repo, remote: Remote, final_branch: str
+) -> "list[Commit]":
     # Get the local commits that are ahead of the remote/target_branch.
     commits = list(
-        repo.iter_commits(
-            "{}/{}..{}".format(
-                remote.name, global_vars.global_target_branch, local_branch
-            )
-        )
+        repo.iter_commits("{}/{}..".format(remote.name, final_branch))
     )
     if len(commits) == 0:
-        warn("No local commits ahead of remote target branch.")
-        sys.exit(0)
+        raise SystemExit("No local commits ahead of remote target branch.")
+
+    commits.reverse()
+    commits_data = []
+    for idx, c in enumerate(commits):
+        source_branch = utils.get_remote_branch_name(
+            final_branch, utils.get_change_id(c.message)
+        )
+        if idx == 0:
+            target_branch = final_branch
+        else:
+            target_branch = utils.get_remote_branch_name(
+                final_branch, utils.get_change_id(commits[idx - 1].message)
+            )
+        commits_data.append(Commit(c, source_branch, target_branch))
+
+    # Get existing MRs destined for final_branch.
+    with timing("get_mrs"):
+        current_mrs_by_source_branch = {
+            mr.source_branch: mr
+            for mr in merge_request.get_all_merge_requests(remote, final_branch)
+        }
+
+    # Link commits with existing MRs
+    for c in commits_data:
+        mr = current_mrs_by_source_branch.get(c.source_branch)
+        if mr:
+            c.mr = mr
+
+    return commits_data
+
+
+def create_merge_requests(repo: Repo, remote, final_branch):
+    """Creates new merge requests on remote."""
+
+    # # Sync up remote branches.
+    # with timing("fetch"):
+    #     remote.fetch(prune=True)
+
+    commits_data = get_commits_data(repo, remote, final_branch)
     print_with_color("Commits to be reviewed:", Bcolors.OKCYAN)
-    for c in commits:
+    for data in reversed(commits_data):
+        c = data.commit
         title, _ = utils.get_msg_title_description(c.message)
         print("* {} {}".format(c.hexsha[:8], title))
     if not global_vars.ci_mode:
@@ -159,19 +202,6 @@ def create_merge_requests(repo, remote, local_branch):
             do_review = input("Unknown input. {}".format(do_review_prompt))
         if do_review == "n":
             return
-    commits.reverse()
-    commits_data = []
-    for idx, c in enumerate(commits):
-        source_branch = utils.get_remote_branch_name(
-            local_branch, utils.get_change_id(c.message)
-        )
-        if idx == 0:
-            target_branch = global_vars.global_target_branch
-        else:
-            target_branch = utils.get_remote_branch_name(
-                local_branch, utils.get_change_id(commits[idx - 1].message)
-            )
-        commits_data.append(Commit(c, source_branch, target_branch))
 
     # Workflow:
     # 1) Create or update MRs.
@@ -180,23 +210,13 @@ def create_merge_requests(repo, remote, local_branch):
     # can become confused (xref
     # https://gitlab.com/gitlab-org/gitlab-foss/-/issues/368).
 
-    # Get existing MRs created off of the given branch.
-    with timing("get_mrs"):
-        current_mrs_by_source_branch = {
-            mr.source_branch: mr
-            for mr in merge_request.get_all_merge_requests(remote, local_branch)
-        }
-
     new_mrs = []
     updated_mrs = []
     commits_to_pipeline_cancel = []
 
-    # Link commits with existing MRs, or create missing MRs
+    # Create missing MRs
     for c in commits_data:
-        mr = current_mrs_by_source_branch.get(c.source_branch)
-        if mr:
-            c.mr = mr
-        else:
+        if not c.mr:
             title, desp = utils.get_msg_title_description(c.commit.message)
             mr = merge_request.MergeRequest(
                 remote=remote,
@@ -282,17 +302,18 @@ def main():
         help="The remote to push the reviews.",
     )
     parser.add_argument(
-        "local_branch",
+        "final_branch",
         type=str,
         nargs="?",
-        help="The local branch to be reviewed.",
+        help="The final branch that commits are intended to be merged into.",
     )
     parser.add_argument(
         "--merge",
         "-m",
         action="store_true",
         default=False,
-        help="Merge the MRs if they are approved.",
+        help="Merge the MRs corresponding to local commits, "
+        "if they are mergeable.",
     )
     parser.add_argument(
         "--setup",
@@ -318,22 +339,21 @@ def main():
         return
 
     remote = repo.remote(name=args.remote)
-    local_branch = args.local_branch
-    if args.local_branch is None:
-        if repo.head.is_detached:
-            raise Exception(
-                "HEAD is detached. Are you in the process of a rebase?"
-            )
-        local_branch = repo.active_branch.name
+    final_branch = args.final_branch or global_vars.global_target_branch
+    if not final_branch:
+        raise SystemExit(
+            "final_branch was not supplied on the command line "
+            "and target_branch is not set in .gitreview"
+        )
 
     if args.yes:
         global_vars.ci_mode = True
 
     # Merge the MRs if they become mergeable.
     if args.merge:
-        merge_merge_requests(remote, local_branch)
+        merge_merge_requests(remote, final_branch)
     else:
-        create_merge_requests(repo, remote, local_branch)
+        create_merge_requests(repo, remote, final_branch)
 
     # Since we made it this far, we can assume that if the user is using a
     # git credential helper, they want to store the credentials.
