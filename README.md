@@ -28,19 +28,14 @@ $ cd gerritlab
 $ pip install .
 ```
 
-## Set up a .gitreview.
+## (Optional) Set up a .gitreview.
 
-Before using this tool, you need to create a `.gitreview` file in the root
-directory of your project.
+A `.gitreview` file can be created in a repo to configure how Gerritlab 
+operates for a given remote.  The `.gitreview` is an INI file with sections
+naming remotes. In each section the following optional settings are allowed:
 
-It must contain:
-
-* `host`: The base URL of the GitLab server.
-* `project_id`: The ID of your project on your GitLab host.
-
-It may optionally contain:
-
-* `target_branch`: the target branch that you want the MRs to eventually merge into. By default, `target_branch` is `master`.
+* `host`: The base URL of the GitLab server.  By default, this is extracted from the git remote URL.
+* `target_branch`: The target branch that you want the MRs to eventually merge into. By default, `target_branch` is whatever the default branch of the GitLab repo is.
 * `remove_source_branch`: Boolean value, indicating whether the source branch of an MR should be deleted once it's merged. By default, `remove_source_branch` is `True`.
 
 Example `.gitreview`:
@@ -48,10 +43,10 @@ Example `.gitreview`:
 ```ini
 [origin]
 host=https://gitlab.example.com
-project_id=1234
-target_branch=master
+target_branch=main
 remove_source_branch=True
 ```
+
 
 ## Set up a private token.
 
