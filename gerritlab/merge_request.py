@@ -40,6 +40,7 @@ class MergeRequest:
         self._web_url = None
         self._mergeable = False
         self._needs_save = False
+        self._sha = None
 
         self._set_data(json_data)
 
