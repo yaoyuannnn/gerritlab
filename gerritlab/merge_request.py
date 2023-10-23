@@ -18,7 +18,7 @@ class MergeRequest:
     _description: Optional[str]
     _iid: Optional[str]
     _web_url: Optional[str]
-    _mergeable: bool
+    _detailed_merge_status: str
     _local_branch: str
     _needs_save: bool
 
@@ -38,7 +38,7 @@ class MergeRequest:
         self._description = description
         self._iid = None
         self._web_url = None
-        self._mergeable = False
+        self._detailed_merge_status = "unknown"
         self._needs_save = False
         self._sha = None
 
@@ -53,7 +53,7 @@ class MergeRequest:
 
     @property
     def mergeable(self):
-        return self._mergeable
+        return self._detailed_merge_status == "mergeable"
 
     @property
     def source_branch(self):
