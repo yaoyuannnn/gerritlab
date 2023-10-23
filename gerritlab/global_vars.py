@@ -60,7 +60,9 @@ def load_config(remote, repo):
     mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
     pipeline_url = "{}/api/v4/projects/{}/pipeline".format(host, project_id)
     pipelines_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
-    branches_url = "{}/api/v4/projects/{}/branches".format(host, project_id)
+    branches_url = "{}/api/v4/projects/{}/repository/branches".format(
+        host, project_id
+    )
     session = requests.session()
     session.headers.update({"PRIVATE-TOKEN": private_token})
 
