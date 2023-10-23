@@ -11,6 +11,7 @@ from gerritlab import git_credentials
 mr_url = None
 pipeline_url = None
 pipelines_url = None
+branches_url = None
 headers = None
 global_target_branch = "master"
 remove_source_branch = False
@@ -27,6 +28,7 @@ def load_config(remote, repo):
     global mr_url
     global pipeline_url
     global pipelines_url
+    global branches_url
     global headers
     global global_target_branch
     global remove_source_branch
@@ -58,6 +60,7 @@ def load_config(remote, repo):
     mr_url = "{}/api/v4/projects/{}/merge_requests".format(host, project_id)
     pipeline_url = "{}/api/v4/projects/{}/pipeline".format(host, project_id)
     pipelines_url = "{}/api/v4/projects/{}/pipelines".format(host, project_id)
+    branches_url = "{}/api/v4/projects/{}/branches".format(host, project_id)
     session = requests.session()
     session.headers.update({"PRIVATE-TOKEN": private_token})
 
