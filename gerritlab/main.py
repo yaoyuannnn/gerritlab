@@ -190,10 +190,6 @@ def get_commits_data(
 def create_merge_requests(repo: Repo, remote, final_branch):
     """Creates new merge requests on remote."""
 
-    # # Sync up remote branches.
-    # with timing("fetch"):
-    #     remote.fetch(prune=True)
-
     commits_data = get_commits_data(repo, remote, final_branch)
     print_with_color("Commits to be reviewed:", Bcolors.OKCYAN)
     for data in reversed(commits_data):
