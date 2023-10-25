@@ -141,7 +141,12 @@ class MergeRequestTest(unittest.TestCase):
             self._test_repo, self._remote, self._target_branch
         )
         self._validate([commit])
-        assert main.merge_merge_requests(self._remote, self._target_branch) == 1
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 1
+        )
 
     def test_create_multiple_mrs(self):
         # Create three MRs.
@@ -153,7 +158,12 @@ class MergeRequestTest(unittest.TestCase):
             self._test_repo, self._remote, self._target_branch
         )
         self._validate(commits)
-        assert main.merge_merge_requests(self._remote, self._target_branch) == 3
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 3
+        )
 
     def test_update_single_mr(self):
         # Create an MR.
@@ -167,7 +177,12 @@ class MergeRequestTest(unittest.TestCase):
             self._test_repo, self._remote, self._target_branch
         )
         self._validate([amended_commit])
-        assert main.merge_merge_requests(self._remote, self._target_branch) == 1
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 1
+        )
 
     def test_update_multiple_mrs(self):
         # Create three MRs.
@@ -184,7 +199,12 @@ class MergeRequestTest(unittest.TestCase):
             self._test_repo, self._remote, self._target_branch
         )
         self._validate(amended_commits)
-        assert main.merge_merge_requests(self._remote, self._target_branch) == 3
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 3
+        )
 
     def test_update_some_mrs(self):
         # Create three MRs.
@@ -201,7 +221,12 @@ class MergeRequestTest(unittest.TestCase):
             self._test_repo, self._remote, self._target_branch
         )
         self._validate([commits[0]] + amended_commits)
-        assert main.merge_merge_requests(self._remote, self._target_branch) == 3
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 3
+        )
 
     def test_insert_new_mr(self):
         # Create three MRs.
@@ -228,7 +253,33 @@ class MergeRequestTest(unittest.TestCase):
             self._test_repo, self._remote, self._target_branch
         )
         self._validate([commit0, inserted_commit, rebased_commit1])
-        assert main.merge_merge_requests(self._remote, self._target_branch) == 3
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 3
+        )
+
+    def test_merge_mrs(self):
+        # Create a chain of 3 MRs
+        commits = []
+        commits.append(self._create_commit("new_file0.txt", "Add a new file0."))
+        commits.append(self._create_commit("new_file1.txt", "Add a new file1."))
+        commits.append(self._create_commit("new_file2.txt", "Add a new file2."))
+        main.create_merge_requests(
+            self._test_repo, self._remote, self._target_branch
+        )
+        self._validate(commits)
+        # Drop the new_file2.txt commit locally.
+        self._test_repo.head.reset("HEAD~1", working_tree=True)
+        # merge_merge_requests should only merge the two MRs corresponding
+        # to the two remaining local commits.
+        assert (
+            main.merge_merge_requests(
+                self._test_repo, self._remote, self._target_branch
+            )
+            == 2
+        )
 
 
 if __name__ == "__main__":
