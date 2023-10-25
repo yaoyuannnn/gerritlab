@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="gerritlab",
-    version="1.0.0",
+    version="2.0.0",
     description="Gerrit-like code review for GitLab",
     author="Yuan Yao",
     author_email="yaoyuannnn@gmail.com",
