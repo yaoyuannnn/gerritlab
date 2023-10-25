@@ -3,6 +3,7 @@ import time
 import os
 import argparse
 from contextlib import contextmanager
+from typing import Optional
 from git.repo import Repo
 from git.remote import Remote
 
@@ -99,11 +100,17 @@ def cancel_prev_pipelines(repo, commits):
 
 
 class Commit:
-    def __init__(self, commit, source_branch, target_branch):
+    def __init__(
+        self,
+        commit,
+        source_branch,
+        target_branch,
+        mr: Optional[merge_request.MergeRequest] = None,
+    ):
         self.commit = commit
         self.source_branch = source_branch
         self.target_branch = target_branch
-        self.mr = None
+        self.mr = mr
 
 
 # key is timer name, value is seconds counted
