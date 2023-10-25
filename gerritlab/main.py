@@ -4,6 +4,7 @@ import os
 import argparse
 from contextlib import contextmanager
 from typing import Optional
+import git
 from git.repo import Repo
 from git.remote import Remote
 
@@ -17,7 +18,7 @@ from gerritlab import (
 from gerritlab.utils import Bcolors, msg_with_color, print_with_color, warn
 
 
-def merge_merge_requests(remote, final_branch) -> int:
+def merge_merge_requests(repo, remote, final_branch) -> int:
     """
     Using local commits on the current branch, locate corresponding merge
     requests in GitLab and merge them in the proper order.
@@ -25,22 +26,19 @@ def merge_merge_requests(remote, final_branch) -> int:
     Returns the number of MRs that were merged (for use by tests).
     """
 
-    print("\nMerging merge requests:")
+    print(f"\nMerging merge requests destined for {final_branch}:")
 
-    # Get MRs destined for final_branch
-    mrs = merge_request.get_all_merge_requests(remote, final_branch)
-    if len(mrs) == 0:
-        print("No MRs found for this branch: {}".format(final_branch))
-        return 0
-
-    # For each local commit, find the corresponding MR.
-    if final_branch not in [mr.target_branch for mr in mrs]:
-        warn(
-            "Not a single MR interested in merging into {}?".format(
-                final_branch
+    mrs = []
+    commits_data = get_commits_data(repo, remote, final_branch)
+    for commit in commits_data:
+        mr = commit.mr
+        if not mr:
+            print(
+                "There is no MR open for local commit "
+                f"{commit.commit.hexsha[:8]} {commit.commit.summary}"
             )
-        )
-        return 0
+            return 0
+        mrs.append(mr)
 
     mr_chain = merge_request.get_merge_request_chain(mrs)
     for mr in mr_chain:
@@ -61,7 +59,7 @@ def merge_merge_requests(remote, final_branch) -> int:
     if len(mergeables) == 0:
         warn(
             "No MRs can be merged into {} as top of the MR chain is not "
-            "mergeable.".format(global_vars.global_target_branch)
+            "mergeable.".format(final_branch)
         )
         return 0
 
@@ -102,7 +100,7 @@ def cancel_prev_pipelines(repo, commits):
 class Commit:
     def __init__(
         self,
-        commit,
+        commit: git.Commit,
         source_branch,
         target_branch,
         mr: Optional[merge_request.MergeRequest] = None,
@@ -358,7 +356,7 @@ def main():
 
     # Merge the MRs if they become mergeable.
     if args.merge:
-        merge_merge_requests(remote, final_branch)
+        merge_merge_requests(repo, remote, final_branch)
     else:
         create_merge_requests(repo, remote, final_branch)
 
