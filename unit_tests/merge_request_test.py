@@ -60,6 +60,8 @@ class MergeRequestTest(unittest.TestCase):
             hard=True,
         )
         self._mrs = []
+        # Start with fresh timing information each test.
+        main.timers = {}
 
     # This runs after every test method
     def tearDown(self):
