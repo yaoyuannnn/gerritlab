@@ -155,7 +155,7 @@ class MergeRequest:
         )
         r.raise_for_status()
 
-    def _wait_until_mergeable(self, timeout=40):
+    def _wait_until_mergeable(self, timeout=120):
         """
         This method is intended for the test suite only.
         """
