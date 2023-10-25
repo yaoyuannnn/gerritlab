@@ -240,11 +240,13 @@ Last detailed_merge_status was {self._detailed_merge_status}.
 
     def wait_until_stable(self, commit):
         """
-        Poll the MR until the "sha" field matches that of `commit`.
+        Poll the MR until the "prepared_at" field is populated
+        and the "sha" field matches that of `commit`.
         """
+
         while True:
             self.refresh()
-            if self._sha == commit.commit.hexsha:
+            if self._prepared_at and self._sha == commit.commit.hexsha:
                 return
             time.sleep(0.500)
 
