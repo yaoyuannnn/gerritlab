@@ -188,7 +188,7 @@ Last detailed_merge_status was {self._detailed_merge_status}.
             resp = global_vars.session.delete(
                 "{}/{}".format(global_vars.branches_url, self._source_branch)
             )
-            if resp.status_code == 404:
+            if resp.status_code in (400, 404):
                 # It's okay if the branch doesn't exist.
                 return
             resp.raise_for_status()
@@ -205,7 +205,7 @@ Last detailed_merge_status was {self._detailed_merge_status}.
             resp = global_vars.session.delete(
                 "{}/{}".format(global_vars.branches_url, self._source_branch)
             )
-            if resp.status_code == 404:
+            if resp.status_code in (400, 404):
                 # It's okay if the branch doesn't exist.
                 return
             resp.raise_for_status()
