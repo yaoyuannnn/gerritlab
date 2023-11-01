@@ -189,11 +189,15 @@ def create_merge_requests(repo: Repo, remote, final_branch):
     """Creates new merge requests on remote."""
 
     commits_data = get_commits_data(repo, remote, final_branch)
-    print_with_color("Commits to be reviewed:", Bcolors.OKCYAN)
+    print_with_color(
+        f"Commits to be reviewed, destined for {remote.name}/{final_branch}:",
+        Bcolors.OKCYAN,
+    )
     for data in reversed(commits_data):
         c = data.commit
         title, _ = utils.get_msg_title_description(c.message)
-        print("* {} {}".format(c.hexsha[:8], title))
+        status = data.mr._reference if data.mr else "new"
+        print("* {} {} [{}]".format(c.hexsha[:8], title, status))
     if not global_vars.ci_mode:
         do_review_prompt = "Proceed? ({}/n) ".format(
             msg_with_color("[y]", Bcolors.OKCYAN)
