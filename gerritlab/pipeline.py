@@ -1,5 +1,7 @@
 """This file provides easy APIs to handle Gitlab pipelines."""
 
+import git
+
 from gerritlab import utils, global_vars
 
 
@@ -82,7 +84,9 @@ def get_pipelines_by_change_id(repo) -> dict:
             change_id = utils.get_change_id(
                 repo.git.log(pipeline.sha, n=1), silent=True
             )
-        except ValueError:
+        except (ValueError, git.exc.GitCommandError):
+            # Continue if the commit that's running the pipeline doesn't have a
+            # ChangdeId or doesn't exist in the local repo.
             continue
         if change_id:
             res.setdefault(change_id, []).append(pipeline)
