@@ -122,7 +122,7 @@ def _parse_remote_url(url: str):
     if m:
         url = "https://" + m[1]
         path = m[2]
-    elif re.match(r"https?://.*", url):
+    elif re.match(r"^(https|ssh)?://.*", url):
         p = urllib.parse.urlparse(url)
         url = f"{p.scheme}://{p.hostname}"
         path = p.path[1:]
