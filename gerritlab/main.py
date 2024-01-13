@@ -149,6 +149,7 @@ def get_commits_data(
     repo: Repo, remote: Remote, final_branch: str
 ) -> "list[Commit]":
     # Get the local commits that are ahead of the remote/target_branch.
+    remote.fetch()
     commits = list(
         repo.iter_commits("{}/{}..".format(remote.name, final_branch))
     )
