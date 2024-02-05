@@ -204,9 +204,9 @@ def create_merge_requests(repo: Repo, remote, final_branch):
             msg_with_color("[y]", Bcolors.OKCYAN)
         )
         do_review = input("\n{}".format(do_review_prompt))
-        while do_review not in ["", "y", "n"]:
+        while do_review not in ["", "y", "yes", "n", "no"]:
             do_review = input("Unknown input. {}".format(do_review_prompt))
-        if do_review == "n":
+        if do_review.startswith("n"):
             return
 
     # Workflow:
