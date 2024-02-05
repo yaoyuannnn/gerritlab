@@ -1,3 +1,4 @@
+import logging
 import shutil
 import time
 import os
@@ -66,10 +67,16 @@ def merge_merge_requests(repo, remote, final_branch) -> int:
     # We must merge MRs from the oldest. And before merging an MR, we
     # must change its target_branch to the final target branch.
     for mr in mergeables:
-        mr.update(target_branch=final_branch)
+        # Changing the target branch shouldn't be required.... Gitlab will take care of retargetting
+        # MRs whose parent MR has deleted its target branch.  Maybe change this to poll until the target
+        # branch == final_branch (with a short-ish  timeout (1 minute)).
+        # logging.debug(f"Changing the target branch of {mr} to {final_branch}")
+        # mr.update(target_branch=final_branch)
         # FIXME: Poll the merge req status and waiting until
         # merge_status is no longer "checking".
+        logging.info(f"Merging {mr}...")
         mr.merge()
+        logging.info(f"Merged {mr}.")
 
     print_with_color("\nSUCCESS\n", Bcolors.OKGREEN)
     print("New Merged MRs:")
@@ -334,7 +341,16 @@ def main():
         default=False,
         help="Do not prompt for confirmation.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable debug logging.",
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(format='%(asctime)s %(message)s')
+    logging.getLogger().setLevel(logging.DEBUG if args.debug else logging.INFO)
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
     ensure_commitmsg_hook(repo.git_dir)

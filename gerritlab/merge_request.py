@@ -137,12 +137,8 @@ class MergeRequest:
         if self._iid is None:
             raise ValueError("Must set iid before merging an MR!")
         url = "{}/{}/merge".format(global_vars.mr_url, self._iid)
-        while True:
-            r = global_vars.session.put(url)
-            if r.status_code == requests.codes.ok:
-                break
-            else:
-                time.sleep(2)
+        r = global_vars.session.put(url)
+        r.raise_for_status()
 
     def approve(self, sha=None):
         if self._iid is None:
