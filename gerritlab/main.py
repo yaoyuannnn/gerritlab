@@ -1,3 +1,4 @@
+import logging
 import shutil
 import time
 import os
@@ -314,6 +315,12 @@ def main():
         help="The final branch that commits are intended to be merged into.",
     )
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Show debugging information (subprocesses, HTTP requests, etc).",
+    )
+    parser.add_argument(
         "--merge",
         "-m",
         action="store_true",
@@ -335,6 +342,9 @@ def main():
         help="Do not prompt for confirmation.",
     )
     args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
     ensure_commitmsg_hook(repo.git_dir)
