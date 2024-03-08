@@ -125,9 +125,11 @@ class MergeRequestTest(unittest.TestCase):
             validate_mr(
                 mr,
                 commit,
-                self._target_branch
-                if idx == 0
-                else self._mrs[idx - 1].source_branch,
+                (
+                    self._target_branch
+                    if idx == 0
+                    else self._mrs[idx - 1].source_branch
+                ),
             )
             # Approve the MR so that we can test main.merge_merge_requests()
             mr.approve()
