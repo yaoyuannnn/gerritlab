@@ -150,8 +150,8 @@ def _get_private_token(
 
 def _get_default_branch(remote: str, repo: Repo) -> str:
     try:
-        default_branch = repo.refs[f"{remote}/HEAD"].reference.name
-        return default_branch.removeprefix("origin/")
+        default_branch = repo.remotes[remote].refs["HEAD"].reference.name
+        return default_branch.removeprefix(f"{remote}/")
     except IndexError:
         raise SystemExit(
             f"""
