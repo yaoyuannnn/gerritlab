@@ -58,34 +58,7 @@ def load_config(remote, repo: Repo):
     if "target_branch" in gitreview_config:
         global_target_branch = gitreview_config["target_branch"]
     else:
-        global_target_branch = _get_upstream_branch(repo)
-        if not global_target_branch:
-            # FIXME: We should allow the target branch to be specified on the
-            # command line like git-review does.
-            raise SystemExit(
-                f"""
-Could not determine the upstream target branch to push changes to.
-
-To fix this, do one of the following things:
-
-* Set the upstream branch of the local branch using a command like:
-  git branch --set-upstream-to={remote}/<upstream-branch-name>
-
-  Example:
-     git branch --set-upstream-to={remote}/main
-
-OR
-
-* Set the default target branch in a section for the remote in .gitreview:
-
-  [{remote}]
-  target_branch=<upstream-branch-name>
-
-  Example:
-    [{remote}]
-    target_branch=main
-"""
-            )
+        global_target_branch = _get_default_branch(remote, repo)
 
     if "remove_source_branch" in gitreview_config:
         remove_source_branch = gitreview_config.getboolean(
@@ -175,17 +148,29 @@ def _get_private_token(
     raise SystemExit(f"Unable to find private token for {host}")
 
 
-def _get_upstream_branch(repo: Repo) -> "str|None":
-    local_branch_name = repo.head.reference.name
-    with repo.config_reader() as conf:
-        section = f'branch "{local_branch_name}"'
-        try:
-            remote_ref = conf.get(section, "merge")
-        except (configparser.NoSectionError, configparser.NoOptionError):
-            return None
-        m = re.match(r"refs/heads/(.*)$", remote_ref)
-        if not m:
-            raise Exception(
-                f"Unexpected remote tracking branch format: {remote_ref}"
-            )
-        return m[1]
+def _get_default_branch(remote: str, repo: Repo) -> str:
+    try:
+        default_branch = repo.remotes[remote].refs["HEAD"].reference.name
+        return default_branch.removeprefix(f"{remote}/")
+    except IndexError:
+        raise SystemExit(
+            f"""
+Could not determine the default branch for remote '{remote}'.
+
+To fix this, do one of the following things:
+
+* Set the Git default branch for the remote:
+  git remote set-head {remote} <branch-name>
+
+OR
+
+* Set the default target branch in a section for the remote in .gitreview:
+
+  [{remote}]
+  target_branch=<upstream-branch-name>
+
+  Example:
+    [{remote}]
+    target_branch=main
+"""
+        )
