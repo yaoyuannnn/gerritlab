@@ -210,15 +210,26 @@ def create_merge_requests(repo: Repo, remote, final_branch):
             return
 
     # Workflow:
-    # 1) Create or update MRs.
-    # 2) Single push with all branch updates.
-    # This order works best with GitLab.  If the order is swapped GitLab
-    # can become confused (xref
-    # https://gitlab.com/gitlab-org/gitlab-foss/-/issues/368).
+    # 1) Single push with all branch updates.
+    # 2) Create or update MRs.
+    # As of GitLab 19.0, the source branches must exist on the remote
+    # before the MRs that reference them can be created; GitLab
+    # rejects MR creation with {'source_branch': ['does not exist']}
+    # otherwise.  Prior to GitLab 19.0 this was done in the opposite order
+    # because it was more reliable; see
+    # https://gitlab.com/gitlab-org/gitlab-foss/-/issues/368.
 
     new_mrs = []
     updated_mrs = []
     commits_to_pipeline_cancel = []
+
+    # Push commits to Change-Id-named branches
+    refs_to_push = [
+        "{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch)
+        for c in commits_data
+    ]
+    with timing("push"):
+        remote.push(refspec=refs_to_push, force=True)
 
     # Create missing MRs
     for c in commits_data:
@@ -250,14 +261,6 @@ def create_merge_requests(repo: Repo, remote, final_branch):
             if (mr.save() or mr._sha != c.commit.hexsha) and mr not in new_mrs:
                 updated_mrs.append(mr)
                 commits_to_pipeline_cancel.append(c.commit)
-
-    # Push commits to Change-Id-named branches
-    refs_to_push = [
-        "{}:refs/heads/{}".format(c.commit.hexsha, c.source_branch)
-        for c in commits_data
-    ]
-    with timing("push"):
-        remote.push(refspec=refs_to_push, force=True)
 
     with timing("Cancelling previous pipelines"):
         cancel_prev_pipelines(repo, commits_to_pipeline_cancel)
