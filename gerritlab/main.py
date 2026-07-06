@@ -186,26 +186,6 @@ def get_commits_data(
     return commits_data
 
 
-def wait_for_remote_branches(source_branches, timeout=30):
-    """Poll GitLab until each branch in `source_branches` is visible.
-
-    A push can return before the branch is queryable via the REST API.  We
-    poll the branches endpoint so that subsequent MR creation does not fail
-    with {'source_branch': ['does not exist']}.  If the timeout is reached we
-    give up quietly and let MR creation surface any remaining error.
-    """
-    deadline = time.time() + timeout
-    for branch in source_branches:
-        url = f"{global_vars.branches_url}/{branch}"
-        while True:
-            r = global_vars.session.get(url)
-            if r.status_code == 200:
-                break
-            if time.time() >= deadline:
-                return
-            time.sleep(0.5)
-
-
 def create_merge_requests(repo: Repo, remote, final_branch):
     """Creates new merge requests on remote."""
 
@@ -250,9 +230,6 @@ def create_merge_requests(repo: Repo, remote, final_branch):
     ]
     with timing("push"):
         remote.push(refspec=refs_to_push, force=True)
-
-    with timing("wait_for_branches"):
-        wait_for_remote_branches([c.source_branch for c in commits_data])
 
     # Create missing MRs
     for c in commits_data:
