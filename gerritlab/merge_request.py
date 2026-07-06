@@ -11,6 +11,17 @@ import git
 from gerritlab import global_vars, utils
 
 
+def _source_branch_missing(resp) -> bool:
+    """Whether `resp` is GitLab's "source branch does not exist" error.
+
+    Shape: {'message': {'source_branch': ['does not exist']}}
+    """
+    try:
+        return "source_branch" in resp["message"]
+    except (KeyError, TypeError):
+        return False
+
+
 class MergeRequest:
     _remote: git.Remote
     _source_branch: str
@@ -75,7 +86,7 @@ class MergeRequest:
                 "    {} -> {}".format(self._source_branch, self._target_branch)
             )
 
-    def create(self):
+    def create(self, timeout=30):
         data = {
             "source_branch": self._source_branch,
             "target_branch": self._target_branch,
@@ -83,19 +94,28 @@ class MergeRequest:
             "description": self._description,
             "remove_source_branch": global_vars.remove_source_branch,
         }
-        try:
+        # A freshly pushed source branch is not always immediately visible to
+        # the merge-request creation endpoint, even once it is queryable via
+        # the branches API.  GitLab then rejects creation with
+        # {'source_branch': ['does not exist']}.  Retry on that specific error
+        # until the branch propagates.
+        deadline = time.time() + timeout
+        while True:
             r = global_vars.session.post(global_vars.mr_url, data=data)
-            data = r.json()
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            raise SystemExit(
-                "Error creating merge request for "
-                "{} → {}\n{}\n{}".format(
-                    self._source_branch, self._target_branch, e, data
+            resp = r.json()
+            try:
+                r.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                if _source_branch_missing(resp) and time.time() < deadline:
+                    time.sleep(0.5)
+                    continue
+                raise SystemExit(
+                    "Error creating merge request for "
+                    f"{self._source_branch} → {self._target_branch}\n{e}\n{resp}"
                 )
-            )
-        self._iid = data["iid"]
-        self._web_url = data["web_url"]
+            break
+        self._iid = resp["iid"]
+        self._web_url = resp["web_url"]
 
     def update(
         self,
