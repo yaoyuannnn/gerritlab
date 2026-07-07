@@ -34,7 +34,7 @@ A `.gitreview` file can be created in a repo to configure how Gerritlab
 operates for a given remote.  The `.gitreview` is an INI file with sections
 naming remotes. In each section the following optional settings are allowed:
 
-* `host`: The base URL of the GitLab server.  By default, this is extracted from the git remote URL.
+* `host`: The base URL of the GitLab server.  By default, this is extracted from the git remote URL. If the git remote uses a different hostname for SSH than the GitLab HTTP API (so the derived host is wrong), set this explicitly. It can also be set in `git config` (see below), which takes precedence over `.gitreview`.
 * `target_branch`: The target branch that you want the MRs to eventually merge into. By default, `target_branch` is whatever the default branch of the GitLab repo is.
 * `remove_source_branch`: Boolean value, indicating whether the source branch of an MR should be deleted once it's merged. By default, `remove_source_branch` is `True`.
 
@@ -46,6 +46,16 @@ host=https://gitlab.example.com
 target_branch=main
 remove_source_branch=True
 ```
+
+The `host` can also be overridden via `git config`, which is handy when you
+don't want to add a tracked `.gitreview` file to the repo just for local
+tooling:
+
+```console
+$ git config --local gerritlab.host "https://gitlab.example.com"
+```
+
+This takes precedence over the `host` in `.gitreview`.
 
 
 ## Set up a private token.
