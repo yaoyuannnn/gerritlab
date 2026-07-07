@@ -50,7 +50,16 @@ def load_config(remote, repo: Repo):
     (host_url, quoted_project_path) = _parse_remote_url(
         repo.remotes[remote].url
     )
+    # The host serving the GitLab HTTP API may differ from the host in the git
+    # remote URL (e.g. when SSH and HTTP are served from different hostnames),
+    # so allow the API host to be overridden explicitly. Precedence, highest
+    # first: git config `gerritlab.host` > `.gitreview` `host` > derived from
+    # the remote URL.
     host_url = gitreview_config.get("host", host_url)
+    try:
+        host_url = git_config.get_value("gerritlab", "host")
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        pass
 
     private_token = _get_private_token(host_url, git_config, gitreview_config)
 
