@@ -34,7 +34,7 @@ A `.gitreview` file can be created in a repo to configure how Gerritlab
 operates for a given remote.  The `.gitreview` is an INI file with sections
 naming remotes. In each section the following optional settings are allowed:
 
-* `host`: The base URL of the GitLab server.  By default, this is extracted from the git remote URL. If the git remote uses a different hostname for SSH than the GitLab HTTP API (so the derived host is wrong), set this explicitly. It can also be set in `git config` (see below), which takes precedence over `.gitreview`.
+* `host`: The base URL of the GitLab server.  By default, this is extracted from the git remote URL. If the git remote uses a different hostname for SSH than the GitLab HTTP API (so the derived URL is wrong), set this explicitly. It can also be set in `git config` (see [Per-host override](#per-host-override) below), which takes precedence over `.gitreview`.
 * `target_branch`: The target branch that you want the MRs to eventually merge into. By default, `target_branch` is whatever the default branch of the GitLab repo is.
 * `remove_source_branch`: Boolean value, indicating whether the source branch of an MR should be deleted once it's merged. By default, `remove_source_branch` is `True`.
 
@@ -47,15 +47,33 @@ target_branch=main
 remove_source_branch=True
 ```
 
-The `host` can also be overridden via `git config`, which is handy when you
-don't want to add a tracked `.gitreview` file to the repo just for local
-tooling:
+### Per-host override
+
+If the hostname in your git remote URL differs from the one serving the GitLab
+HTTP API — for example when SSH and HTTP are served from different hosts — you
+can map a remote host to its API base URL via `git config`:
 
 ```console
-$ git config --local gerritlab.host "https://gitlab.example.com"
+$ git config --global gerritlab.<remote-host>.url "https://<api-host>"
 ```
 
-This takes precedence over the `host` in `.gitreview`.
+Because this is keyed by the remote host, it is safe to set with `--global`:
+it only applies to repos whose remote actually uses `<remote-host>`, leaving
+all other repos untouched. This lets you configure the mapping once for every
+repo on that host, rather than per repo.
+
+For example, to route all repos cloned over SSH from `gitlab-ssh.example.com`
+to the API at `https://gitlab.example.com`:
+
+```console
+$ git config --global gerritlab.gitlab-ssh.example.com.url "https://gitlab.example.com"
+```
+
+The resolution order for the API base URL, highest precedence first, is:
+
+1. `git config` `gerritlab.<remote-host>.url`
+2. `.gitreview` `host`
+3. the URL derived from the git remote
 
 
 ## Set up a private token.

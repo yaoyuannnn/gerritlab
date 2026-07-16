@@ -47,19 +47,26 @@ def load_config(remote, repo: Repo):
     else:
         gitreview_config = {}
 
-    (host_url, quoted_project_path) = _parse_remote_url(
+    (derived_host_url, quoted_project_path) = _parse_remote_url(
         repo.remotes[remote].url
     )
-    # The host serving the GitLab HTTP API may differ from the host in the git
+    remote_host = urllib.parse.urlparse(derived_host_url).netloc
+
+    # The URL serving the GitLab HTTP API may differ from the host in the git
     # remote URL (e.g. when SSH and HTTP are served from different hostnames),
-    # so allow the API host to be overridden explicitly. Precedence, highest
-    # first: git config `gerritlab.host` > `.gitreview` `host` > derived from
-    # the remote URL.
+    # so allow the API base URL to be overridden. Precedence, highest first:
+    #
+    #   1. git config `[gerritlab "<remote-host>"] url` -- keyed by the remote
+    #      host, so it is safe to set with `--global`: it only applies to repos
+    #      whose remote uses <remote-host>.
+    #   2. `.gitreview` `host`
+    #   3. the URL derived from the git remote
+    host_url = derived_host_url
     host_url = gitreview_config.get("host", host_url)
-    try:
-        host_url = git_config.get_value("gerritlab", "host")
-    except (configparser.NoSectionError, configparser.NoOptionError):
-        pass
+    host_url = _get_config_value(
+        git_config, f'gerritlab "{remote_host}"', "url", host_url
+    )
+    host_url = _validate_host_url(host_url)
 
     private_token = _get_private_token(host_url, git_config, gitreview_config)
 
@@ -115,6 +122,33 @@ def _parse_remote_url(url: str):
     if m:
         path = m[1]
     return (url, urllib.parse.quote(path, safe=""))
+
+
+def _get_config_value(git_config, section: str, option: str, default):
+    """
+    Returns the value of `section.option` from `git_config`, or `default` if
+    the section or option is not set.
+    """
+    try:
+        return git_config.get_value(section, option)
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        return default
+
+
+def _validate_host_url(url: str) -> str:
+    """
+    Validates that `url` is an http(s) base URL for the GitLab instance and
+    normalizes it by stripping any trailing slash. The path is preserved so
+    that GitLab instances hosted under a subpath (e.g.
+    "https://example.com/gitlab") continue to work.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise SystemExit(
+            f"Invalid GitLab URL {url!r}: expected an http(s) URL such as "
+            "'https://gitlab.example.com'."
+        )
+    return url.rstrip("/")
 
 
 def _get_private_token(
