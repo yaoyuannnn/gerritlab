@@ -111,7 +111,8 @@ class MergeRequest:
                     continue
                 raise SystemExit(
                     "Error creating merge request for "
-                    f"{self._source_branch} → {self._target_branch}\n{e}\n{resp}"
+                    f"{self._source_branch} → {self._target_branch}\n"
+                    f"{e}\n{resp}"
                 )
             break
         self._iid = resp["iid"]

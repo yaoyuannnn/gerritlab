@@ -291,8 +291,10 @@ def create_merge_requests(repo: Repo, remote, final_branch):
             print(f"{timer_name}: {seconds} seconds")
 
 
-def ensure_commitmsg_hook(git_dir):
-    commitmsg_hook_file = os.path.join(git_dir, "hooks", "commit-msg")
+def ensure_commitmsg_hook(repo):
+    commitmsg_hook_file = repo.git.rev_parse(
+        "--path-format=absolute", "--git-path", "hooks/commit-msg"
+    )
 
     if not os.path.exists(commitmsg_hook_file):
         source = os.path.join(os.path.dirname(__file__), "commit-msg")
@@ -340,7 +342,7 @@ def main():
     args = parser.parse_args()
 
     repo = Repo(os.getcwd(), search_parent_directories=True)
-    ensure_commitmsg_hook(repo.git_dir)
+    ensure_commitmsg_hook(repo)
 
     global_vars.load_config(args.remote, repo)
 
