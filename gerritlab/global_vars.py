@@ -2,6 +2,7 @@
 
 import os
 import configparser
+import importlib.metadata
 import re
 import requests
 import urllib
@@ -94,8 +95,18 @@ def load_config(remote, repo: Repo):
     branches_url = "{}/api/v4/projects/{}/repository/branches".format(
         host_url, quoted_project_path
     )
+    try:
+        version = importlib.metadata.version("gerritlab")
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
     session = requests.session()
-    session.headers.update({"PRIVATE-TOKEN": private_token})
+    session.headers.update(
+        {
+            "PRIVATE-TOKEN": private_token,
+            "User-Agent": f"gerritlab/{version} "
+            "(https://github.com/yaoyuannnn/gerritlab)",
+        }
+    )
 
 
 def _parse_remote_url(url: str):
