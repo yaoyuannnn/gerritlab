@@ -43,7 +43,7 @@ def merge_merge_requests(repo, remote, final_branch) -> int:
     mr_chain = merge_request.get_merge_request_chain(mrs)
     for mr in mr_chain:
         # GitLab does not recheck mergeability status when lists of MRs
-        # are requested (as merge_request.get_all_merge_requests() does),
+        # are requested (as merge_request.get_merge_request() does),
         # so ensure we have up-to-date information merge status information
         # by refreshing each MR individually.
         mr.refresh()
@@ -170,18 +170,12 @@ def get_commits_data(
             )
         commits_data.append(Commit(c, source_branch, target_branch))
 
-    # Get existing MRs destined for final_branch.
+    # Link commits with existing MRs. The lookup also finds MRs that other
+    # users created, for example when the user continues the stack of
+    # another user.
     with timing("get_mrs"):
-        current_mrs_by_source_branch = {
-            mr.source_branch: mr
-            for mr in merge_request.get_all_merge_requests(remote, final_branch)
-        }
-
-    # Link commits with existing MRs
-    for c in commits_data:
-        mr = current_mrs_by_source_branch.get(c.source_branch)
-        if mr:
-            c.mr = mr
+        for c in commits_data:
+            c.mr = merge_request.get_merge_request(remote, c.source_branch)
 
     return commits_data
 
