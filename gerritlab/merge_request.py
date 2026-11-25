@@ -1,6 +1,5 @@
 """This file includes easy APIs to handle GitLab merge requests."""
 
-import re
 import sys
 from typing import Optional
 import time
@@ -305,53 +304,32 @@ Last detailed_merge_status was {self._detailed_merge_status}.
         return saved
 
 
-def _get_open_merge_requests():
-    """Gets all open merge requests in the GitLab repo."""
-    page = 1
-    per_page = 50
-    results = []
-    while True:
-        try:
-            next_page = global_vars.session.get(
-                "{}?state=opened&page={}&per_page={}&"
-                "scope=created_by_me".format(global_vars.mr_url, page, per_page)
-            )
-            next_page.raise_for_status()
-        except (
-            requests.exceptions.HTTPError,
-            requests.exceptions.InvalidHeader,
-        ) as e:
-            print("Error gathering merge requests, message: {}".format(e))
-            sys.exit(1)
+def get_merge_request(remote, source_branch):
+    """Return the open `MergeRequest` that has `source_branch`, or None.
 
-        if not next_page.json():
-            break
+    The search includes merge requests that other users created.
+    """
+    try:
+        r = global_vars.session.get(
+            global_vars.mr_url,
+            params={
+                "state": "opened",
+                "scope": "all",
+                "source_branch": source_branch,
+            },
+        )
+        r.raise_for_status()
+    except (
+        requests.exceptions.HTTPError,
+        requests.exceptions.InvalidHeader,
+    ) as e:
+        print("Error gathering merge requests, message: {}".format(e))
+        sys.exit(1)
 
-        results.append(next_page)
-        page += 1
-    return results
-
-
-# This is used by tests
-def get_merge_request(remote, branch):
-    """Return a `MergeRequest` given branch name."""
-    for r in _get_open_merge_requests():
-        for mr in r.json():
-            if mr["source_branch"] == branch:
-                return MergeRequest(remote=remote, json_data=mr)
+    for json_data in r.json():
+        if json_data["source_branch"] == source_branch:
+            return MergeRequest(remote=remote, json_data=json_data)
     return None
-
-
-def get_all_merge_requests(remote, branch):
-    """Return all `MergeRequest`s destined for `branch`."""
-    mrs = []
-    pattern = re.compile(re.escape(branch) + "-I[0-9a-f]{40}$")
-
-    for r in _get_open_merge_requests():
-        for json_data in r.json():
-            if re.match(pattern, json_data["source_branch"]):
-                mrs.append(MergeRequest(remote=remote, json_data=json_data))
-    return mrs
 
 
 def get_merge_request_chain(mrs) -> "list[MergeRequest]":
